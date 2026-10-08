@@ -12,7 +12,7 @@ from airday.timeutil import IST
 
 SCHEMA = json.load(open(os.path.join(os.path.dirname(__file__), "..", "..", "contracts", "brief.schema.json"),
                         encoding="utf-8"))
-HERO = dt.date(2025, 11, 19)  # Wednesday, Very Poor morning in the frozen fixture
+HERO = dt.date(2025, 11, 19)  # Wednesday; DTU station measured Severe all morning
 
 
 def test_replay_brief_is_valid_and_labelled():
@@ -23,7 +23,8 @@ def test_replay_brief_is_valid_and_labelled():
     assert b["generatedAt"].startswith("2025-11-19T06:00")
     assert b["official"]["citySource"] == "bulletin"
     pe = [a for a in b["actions"] if a["kind"] == "activity" and "6B PE" in a["text"]]
-    assert pe and pe[0]["ruleIds"] == ["R-VP-PE"]
+    assert pe and pe[0]["ruleIds"] == ["R-SV-PE"]
+    assert any(h["escalated"] for h in b["hours"])  # station floor raised the forecast
 
 
 def test_replay_and_live_keys_are_separate():
@@ -70,9 +71,9 @@ def test_diff_reports_changed_actions():
     s = MemoryStore()
     old = service.build_brief(s, "demo", HERO, mode="replay")
     new = json.loads(json.dumps(old))
-    new["actions"][0]["ruleIds"] = ["R-SV-ASM"]
+    new["actions"][0]["ruleIds"] = ["R-P-ASM"]
     d = service.diff(old, new)
-    assert len(d) == 1 and d[0]["now"] == ["R-SV-ASM"]
+    assert len(d) == 1 and d[0]["now"] == ["R-P-ASM"]
 
 
 # ---------------------------------------------------------------- email protocol
@@ -111,7 +112,7 @@ def test_failed_send_is_retried_then_sent():
 def test_email_body_has_changes_first_plain_text_and_attribution():
     b = _brief()
     text = mailer.render_text(b)
-    assert text.index("WHAT CHANGES TODAY") < text.index("AS NORMAL")
-    assert "[R-VP-PE]" in text and "Open-Meteo" in text
+    assert text.index("WHAT CHANGES TODAY") < text.index("PARENT NOTE")
+    assert "[R-SV-PE]" in text and "Open-Meteo" in text
     html_body = mailer.render_html(b)
     assert 'lang="hi"' in html_body and "<script" not in html_body
