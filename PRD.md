@@ -393,7 +393,9 @@ Remaining, by owner:
 | Frontend | Outsider test script and copy polish | Fri 20:00 |
 | Everyone | Feature freeze | Fri 22:00 |
 
-The team chose to deploy once the build is done, so the first real 06:00 run will be **Sat 06:00** (Sat is a school day; Sunday is skipped). That is the only real run before the video. If the deploy can happen on Thursday night instead, Friday 06:00 becomes a second chance.
+The team deploys on Thursday night, so the first real 06:00 run is **Fri 06:00**, with **Sat 06:00** as a second chance before the video (Sunday is skipped).
+
+Blocker found Thu 19:20: the AWS account is not activated yet. SES, SSM, CloudFormation and EC2 all return `SubscriptionRequired` / `OptInRequired`. Deploy can't start until account activation finishes (payment method and phone verification in the console).
 
 ## 15. Timeline (remaining)
 
@@ -401,8 +403,8 @@ Roles: **Backend** (engine, API, email, agent), **Data & infra** (sources, SAM, 
 
 | When | Milestone |
 |---|---|
-| Thu night | Student verification, Rules page, CI green |
-| Fri 13:00 | Deployed: API, Cognito, Amplify dashboard, schedule live; demo school reachable at the public URL |
+| Thu night | Student verification, Rules page, CI green. AWS account activated. First `sam deploy` with the schedule live, so Fri 06:00 runs for real |
+| Fri 13:00 | Amplify dashboard with Cognito variables; demo school reachable at the public URL; GitHub OIDC role so CI deploys |
 | Fri 18:00 | Sources read or rules reworded; Hindi reviewed; bulletin values filled; chat checked on the real model |
 | Fri 22:00 | Feature freeze |
 | Sat 06:00 | First real scheduled run; capture the CloudWatch dashboard and the `daily_brief` log line |
@@ -443,7 +445,7 @@ Rule IDs stay visible in every frame that shows a brief.
 ## 18. Open questions
 - Product name (AirDay is a placeholder).
 - Who attends DTU on Saturday. The plan holds either way.
-- Whether to deploy tonight for a Friday 06:00 run, or stay with the Friday 13:00 plan.
+- None blocking. Deploy is tonight; it waits only on AWS account activation.
 
 ## 19. Changes from previous version
 - **Many schools.** Sign-in with Cognito, one school per user, server-side tenant resolution, public read-only demo school. "No login" and "multiple schools (P2)" are gone.
