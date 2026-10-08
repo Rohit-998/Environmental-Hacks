@@ -96,6 +96,14 @@ def test_escalation_raises_three_hours_and_never_lowers():
     assert bands[8].band == "very_poor" and not bands[8].escalated
 
 
+def test_floor_for_the_rest_of_the_day_stops_at_hour_23():
+    station = [Reading(5, 300, None)]
+    bands = hourly_bands(RS, fc({h: 70 for h in range(24)}), station, station_hour=5, escalation_hours=24)
+    assert max(bands) == 23
+    assert all(bands[h].band == "severe" for h in range(5, 24))
+    assert bands[4].band == "moderate"
+
+
 def test_escalation_fills_unknown_hours_and_stale_reading_is_ignored():
     station = [Reading(8, 100, None)]
     bands = hourly_bands(RS, fc({8: None, 9: None}), station, station_hour=8)

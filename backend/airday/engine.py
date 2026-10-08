@@ -91,7 +91,8 @@ def hourly_bands(
         latest = out[station_hour]
         s_band = rs.band_of(latest.station_pm25, latest.station_pm10)
         if s_band != UNKNOWN:
-            for h in range(station_hour, station_hour + escalation_hours):
+            # Hours are 0-23 of one day; the floor never spills into hours that don't exist.
+            for h in range(station_hour, min(station_hour + escalation_hours, 24)):
                 hb = out.setdefault(h, HourBand(h, None, None, UNKNOWN, UNKNOWN))
                 if hb.band == UNKNOWN or rs.rank(s_band) > rs.rank(hb.band):
                     hb.band = s_band
