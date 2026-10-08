@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (lint, tests, release check)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Lint
+        run: uvx ruff@0.16.10 check .
+      - name: Tests
+        run: uv run pytest -q
+      - name: Backtest reproduces the committed report
+        run: |
+          uv run python -m backtest.run > /dev/null
+          git diff --exit-code -- backtest/report.json
+      - name: Release check (rule sources read)
+        # Informational until the team has read the sources; flip to blocking before submission.
+        continue-on-error: true
+        run: RELEASE=1 uv run pytest -q tests/test_rules.py
+
+  frontend:
+    name: Frontend (lint, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  infra:
+    name: Infrastructure (cfn-lint, requirements)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.2.0
+      - name: cfn-lint (includes the SAM transform, no AWS credentials needed)
+        run: uvx --from cfn-lint==1.40.3 cfn-lint template.yaml
+      - name: Lambda requirements match the lockfile
+        working-directory: backend
+        run: |
+          uv export --frozen --no-dev --no-hashes --no-emit-project --extra agent -o /tmp/req.txt
+          diff <(grep -v '^#' requirements.txt) <(grep -v '^#' /tmp/req.txt)
+
+  deploy:
+    name: Deploy to AWS
+    needs: [backend, frontend, infra]
+    # Off until the team adds the AWS_DEPLOY_ROLE_ARN repository variable (see docs/deploy.md).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AWS_DEPLOY_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      contents: read
+      id-token: write  # OIDC: no long-lived AWS keys in GitHub
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: aws-actions/setup-sam@v3
+        with:
+          use-installer: true
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-south-1
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+      - run: sam build
+      - name: sam deploy
+        run: >
+          sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+          --stack-name airday-prod --resolve-s3 --capabilities CAPABILITY_IAM
+          --parameter-overrides
+          Stage=prod
+          SesSender=${{ vars.SES_SENDER }}
+          DashboardUrl=${{ vars.DASHBOARD_URL }}
+          CorsOrigins=${{ vars.CORS_ORIGINS }}
+          AlarmEmail=${{ vars.ALARM_EMAIL }}
