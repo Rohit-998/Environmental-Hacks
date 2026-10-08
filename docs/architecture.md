@@ -24,7 +24,7 @@ flowchart LR
     AMP --> API[API Gateway HTTP API<br/>JWT authorizer on /me]
     API --> A[API Lambda]
     API --> AG[Agent Lambda<br/>Strands Agents]
-    AG --> BR[Bedrock<br/>Nova Lite]
+    AG --> BR[Gemini now<br/>Bedrock when allowed]
   end
 
   P & W & A & AG --> DDB[(DynamoDB<br/>single table)]
@@ -82,7 +82,7 @@ Every access pattern is a `GetItem` or a `Query` on one partition. There are no 
 | OpenAQ or data.gov.in down | That field shows "unavailable"; the brief still goes out. |
 | Brief fails validation | No plan is sent. The principal gets "today's plan could not be built", and the job fails visibly. |
 | Run starts after 07:30 | Skipped and logged, so a stale plan never arrives mid-morning. |
-| Upstream overload from fan-out | Worker reserved concurrency 20; the shared cache means workers rarely call upstream at all. |
+| Upstream overload from fan-out | The SQS event source caps the worker at 5 concurrent runs; the shared cache means workers rarely call upstream at all. |
 
 ## Security
 
@@ -134,7 +134,7 @@ Estimates for ap-south-1 from public on-demand prices, before free tier. Check w
 | Shared forecast fetch | ~0 (one per grid cell) |
 | **Total, without chat** | **under $0.01** |
 
-Chat on Nova Lite at about 3,000 input and 300 output tokens per turn costs a fraction of a cent per question, capped
+Chat currently runs on Gemini (free tier) because Bedrock is blocked on this account; on Nova Lite it would cost a fraction of a cent per question at about 3,000 input and 300 output tokens. Either way it is capped
 per tenant per day. Fixed costs (Cognito under 10,000 users, API Gateway, CloudWatch at this volume) fall inside free
 tier or cost cents.
 
@@ -144,7 +144,7 @@ tier or cost cents.
 |---|---|---|
 | Planner reads every profile to find its grid cell | Tens of thousands of schools | Store the grid cell in the registry row (already written) and read only that |
 | SES sending quota | Sandbox: 200/day; production access raises it | Request production access; batch by domain |
-| Worker concurrency 20 | ~20,000 schools in a 30-minute window at 1 s each | Raise the reservation; upstream calls are already cached |
+| Worker concurrency 5 (account limit 10) | ~9,000 schools in a 30-minute window at 1 s each | Request a Lambda concurrency increase and raise `MaximumConcurrency` |
 | One region | Regional outage | The table and schedule can be replicated; not worth it at this stage |
 
 ## Decisions

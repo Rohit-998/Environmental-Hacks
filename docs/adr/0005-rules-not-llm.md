@@ -10,7 +10,7 @@ line says "move PE indoors".
 ## Decision
 
 Every action comes from `rules/rules.yaml` through the deterministic engine and carries a rule ID. The standard parent
-note uses reviewed English and Hindi templates. The LLM (Strands Agents on Bedrock) has two jobs a template can't do:
+note uses reviewed English and Hindi templates. The LLM (Strands Agents; Gemini while Bedrock is blocked on this account, see the README) has two jobs a template can't do:
 
 1. Translate the principal's own free-text addition into Hindi. A validator checks that numbers and times survive and
    that the output is Devanagari; otherwise the line stays in English.
@@ -22,5 +22,5 @@ note uses reviewed English and Hindi templates. The LLM (Strands Agents on Bedro
 
 - The morning email works with no model at all. A model outage only disables chat and free-text translation.
 - Chat answers can't invent rules; they can only phrase what the engine returned.
-- Model choice is a parameter (`ModelProvider`, `ModelId`). Nova Lite is the default because it needs no Marketplace
+- Model choice is a parameter (`ModelProvider`, `ModelId`). Gemini is the current default only because Bedrock invocation is blocked on this new account; on Bedrock, Nova Lite would be the choice because it needs no Marketplace
   subscription and is cheap per turn.

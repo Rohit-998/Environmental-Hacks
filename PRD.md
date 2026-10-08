@@ -3,7 +3,7 @@
 Track: Air (Environmental Hacks, Bharat Builds Tour)
 Team: multi-person, four roles (§15)
 Build window: Thu Oct 8 to Sun Oct 11, 2026. Saturday is polish only (DTU build day).
-Status as of Thu 19:15 IST: built and tested locally, not yet deployed (§14).
+Status as of Fri 02:30 IST: deployed to AWS (ap-south-1), first scheduled run Fri 06:00 (§14).
 
 Deeper detail lives in [docs/architecture.md](docs/architecture.md) (system, failure modes, security, cost),
 [docs/adr/](docs/adr/) (decisions) and [backend/backtest/report.md](backend/backtest/report.md) (accuracy).
@@ -101,7 +101,7 @@ Pilot (after the hackathon): brief open rate, parent notes copied, outdoor minut
 
 ## 6. Features
 
-Status key: ✅ built and tested locally · ⏳ needs deploy or a person.
+Status key: ✅ built, tested and deployed · ⏳ still open.
 
 ### Must (never cut)
 1. ✅ **Accounts and schools.** Email sign-up and sign-in with Cognito. A signed-in user creates one school; the school ID comes from the token server-side, never from the client. A public demo school stays readable by everyone; writes to it need the demo admin key while `DemoAdmin=true`.
@@ -115,14 +115,14 @@ Status key: ✅ built and tested locally · ⏳ needs deploy or a person.
 9. ✅ **Validator at runtime.** Every action has rule IDs that exist; every timetable activity of the day has exactly one action; no hourly number is labelled "AQI". A brief that fails is not emailed; the principal gets "today's plan could not be built" and the job fails visibly.
 10. ✅ / ⏳ **Daily run, many schools.** EventBridge Scheduler at 06:00 IST → planner → SQS → workers (§9). Workers skip non-school days and holidays, and skip runs after 07:30 so a stale plan never arrives mid-morning. ⏳ First real run on AWS.
 11. ✅ **Historical replay.** Pick a past date from a fixed list; the pipeline runs "as of 06:00" from frozen fixtures, per school. Stored as `REPLAY#<date>`, never touches real briefs or the email lock. A REPLAY-labelled email can be sent for the video. Fixtures: 19 and 27 Nov 2025.
-12. ✅ / ⏳ **Parent note, English and Hindi, from templates.** Per-rule templates in `rules.yaml`. "Copy for WhatsApp" copies plain text. ⏳ Fluent Hindi speaker review.
+12. ✅ / ⏳ **Parent note, English and Hindi, from templates.** Per-rule templates in `rules.yaml`. "Copy for WhatsApp" copies plain text. ⏳ Fluent Hindi speaker review (templates were written carefully but not reviewed by a native speaker).
 13. ✅ **Dashboard: Today.** Decision headline, "What changes today" first, "As normal" collapsed, official AQI and GRAP badge with labels, hourly PM2.5 strip with station overlay and a text table, parent note with English/Hindi toggle and copy button, replay picker, a prompt to add a timetable when it's empty.
 14. ✅ **Observability.** Powertools for AWS Lambda: structured JSON logs, X-Ray traces, EMF metrics, CloudWatch dashboard, alarms (§9.4).
 15. ✅ **Backtest.** `uv run python -m backtest.run` scores the engine against committed station and forecast data and writes the report. Re-run in CI.
 
 ### Should (cut in this order if behind)
-16. ✅ / ⏳ **Principal chat** (Strands agent). Tools: `get_day(date)` and `evaluate_activity(type, date, start, end)`. Behaviour in §8.2. ⏳ Bedrock access check and a run against the real model.
-17. ✅ / ⏳ **Free-text addition, translated.** The principal types one line to append to the parent note; the agent translates it; the validator in §8.3 checks it. ⏳ Real model run.
+16. ✅ / ⏳ **Principal chat** (Strands agent). Tools: `get_day(date)` and `evaluate_activity(type, date, start, end)`. Behaviour in §8.2. Runs on Gemini (`gemini-3.5-flash`, falling back to Flash-Lite models on rate limits) because Bedrock invocation is blocked on this new AWS account (§8.1). Live: 5 of 5 test questions grounded with correct rule IDs.
+17. ✅ / ⏳ **Free-text addition, translated.** The principal types one line to append to the parent note; the agent translates it; the validator in §8.3 checks it. Live on Gemini: numbers and times preserved, Devanagari validated.
 18. ✅ **"Check an activity" form.** Deterministic `GET /evaluate`, shared with the chat tool. If chat is cut, this keeps the event-planning demo.
 
 Cut order: chat → free-text translation. Everything in Must is never cut. If every LLM job is cut, Strands is no longer used, and AWS eligibility rests on the deployed services, SAM CLI and Powertools.
@@ -167,7 +167,7 @@ An hour's band is the worse of the two. A value that is null, negative or above 
 
 ### 7.4 Actions
 
-Principle: the harder the activity, the earlier it is restricted (PE, then recess, then assembly). This is a design principle until a source on exertion during pollution episodes has been read and recorded.
+Principle: the harder the activity, the earlier it is restricted (PE, then recess, then assembly). Source: US EPA schools guidance (`exertion_guidance` in SOURCES.md).
 
 Activity-bound (`kind: activity`):
 
@@ -201,7 +201,7 @@ Hour-bound (`kind: window` / `note`):
 
 `backend/rules/SOURCES.md` lists each source key with `status` (`pending`/`read`), `read_by` and `read_on`. A release test (`RELEASE=1 pytest`) fails while any emitted rule cites a pending source; CI runs it as a warning until Fri 18:00, then it should become blocking. A rule whose source isn't read by then is reworded as plain guidance with `basis: derived`.
 
-Sources to read (none cited until read): CPCB National AQI (2014) health statements; CAQM GRAP schedule (current revision); WHO or US EPA guidance on reducing exertion during high-pollution episodes. The CPCB "Moderate" statement wording must be checked; it may not mention children and older adults.
+Read and quoted in `SOURCES.md`: CPCB National AQI report (CUPS/82/2014-15), Table 3.12 health statements and the breakpoint table; US EPA "Air Quality and Outdoor Activity Guidance for Schools" (EPA-456/F-14-003), which supports the exertion principle ("More pollution enters the lungs when a person is breathing harder"). The CPCB Moderate statement does mention children and older adults. Still pending: the CAQM GRAP schedule, which only feeds the display-only indicative badge; no emitted rule cites it. The release check is blocking in CI.
 
 ### 7.6 Data limits and the station floor
 - Open-Meteo air quality uses CAMS Global at 0.4° (about 45 km), 3-hourly. Delhi NCR is one or two grid cells: "city-area forecast". Past data is archived CAMS forecasts from the same endpoint, from August 2022.
@@ -217,7 +217,9 @@ Sources to read (none cited until read): CPCB National AQI (2014) health stateme
 ## 8. Agent
 
 ### 8.1 Provider
-Strands Agents SDK 1.58.1 (AWS open source), provider set by `ModelProvider`/`ModelId`. Default: Amazon Nova Lite through the APAC cross-region inference profile (`apac.amazon.nova-lite-v1:0`), because it needs no Marketplace subscription. Bedrock has no free tier for models; usage draws on the account's credits and costs a fraction of a cent per turn. ⏳ Bake-off: 5 Hindi translations and 5 tool-calling prompts; pass bar 4 of 5 on each; next step Nova Pro. Fallback: Strands' LiteLLM provider. The video names whichever provider is used. See ADR 0005.
+**Current: Google Gemini.** Every Bedrock model (Nova 2 Lite, Nova Lite, Nova Micro; ap-south-1 and us-east-1) returns `ValidationException: Operation not allowed` on this new AWS account, so the agent runs on Gemini `gemini-3.5-flash` through Strands' native Gemini provider, with `gemini-3.5-flash-lite` and `gemini-3.1-flash-lite` as fallbacks on 429/503. The key is in SSM as a SecureString. Only the question and tool results (timetable slots, public air data) go to Gemini; no personal data. Switching back is one deploy parameter: `ModelProvider=bedrock ModelId=global.amazon.nova-2-lite-v1:0`.
+
+Strands Agents SDK 1.58.1 (AWS open source), provider set by `ModelProvider`/`ModelId`. Bedrock plan, once access is granted: Default: Amazon Nova Lite through the APAC cross-region inference profile (`apac.amazon.nova-lite-v1:0`), because it needs no Marketplace subscription. Bedrock has no free tier for models; usage draws on the account's credits and costs a fraction of a cent per turn. ⏳ Bake-off: 5 Hindi translations and 5 tool-calling prompts; pass bar 4 of 5 on each; next step Nova Pro. Fallback: Strands' LiteLLM provider. The video names whichever provider is used. See ADR 0005.
 
 ### 8.2 Chat
 - Context date: the dashboard's selected date (live or replay). "Today" and "tomorrow" are relative to it. Planning window: context date plus 2 days; outside that gets a fixed reply.
@@ -247,7 +249,7 @@ EventBridge Scheduler (06:00 IST)
 Principal ─► Next.js static site (Amplify Hosting) ─► Cognito (sign-in)
           └─► API Gateway HTTP API (JWT authorizer on /me/*)
                  ├─► API Lambda    (school, timetable, brief, replay, evaluate)
-                 └─► Agent Lambda  (chat, translate; Strands → Bedrock Nova Lite)
+                 └─► Agent Lambda  (chat, translate; Strands → Gemini now, Bedrock when allowed)
 
 All Lambdas ─► DynamoDB single table · CloudWatch (JSON logs, EMF metrics) · X-Ray
 ```
@@ -277,7 +279,7 @@ template.yaml, amplify.yml
 ### 9.2 Daily fan-out
 - The planner reads the school registry, snaps each school to its grid cell, fetches each cell's forecast once into the shared `CACHE` partition, and sends one SQS message per school. Delhi with 1,000 schools is two or three forecast calls. See ADR 0006.
 - Workers process batches of 10 and report only failed messages back (`ReportBatchItemFailures`). After 3 receives a message moves to the DLQ, which alarms.
-- Worker reserved concurrency 20 caps load on SES and upstream APIs. Queue visibility 6 minutes, retention 2 hours (an older brief is useless). Scheduler retries the planner twice within 30 minutes.
+- The SQS event source caps the worker at 5 concurrent invocations (`ScalingConfig.MaximumConcurrency`), which bounds load on SES and upstream APIs without reserving account concurrency (new accounts have a limit of 10). Queue visibility 6 minutes, retention 2 hours (an older brief is useless). Scheduler retries the planner twice within 30 minutes.
 
 ### 9.3 Email send protocol
 `SCHOOL#<id>` / `EMAIL#<date>` with `status` ∈ SENDING/SENT/FAILED and `attempts`.
@@ -352,7 +354,7 @@ On-demand, point-in-time recovery, encryption at rest, `DeletionPolicy: Retain`,
 
 ## 13. Testing and CI
 
-99 backend tests pass locally (1 release check skipped by design). `ruff`, `eslint`, `next build` and `cfn-lint` are clean.
+118 backend tests pass (the release check runs separately and passes). DynamoStore and a full daily run are also tested against moto's DynamoDB. `ruff`, `eslint`, `next build` and `cfn-lint` are clean.
 
 | Area | Tests |
 |---|---|
@@ -372,7 +374,7 @@ On-demand, point-in-time recovery, encryption at rest, `DeletionPolicy: Retain`,
 | Contract | Briefs validate against the schema |
 | Backtest | CI re-runs it and fails if `report.json` changes |
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request: backend lint and tests, backtest reproducibility, release check (warning only for now), frontend lint and build, cfn-lint, and a check that `requirements.txt` matches `uv.lock`. A deploy job (SAM, GitHub OIDC, no stored keys) runs on `main` only once the `AWS_DEPLOY_ROLE_ARN` repository variable is set. ⏳ The first CI result hasn't been checked; see the Actions tab.
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request: backend lint and tests, backtest reproducibility, release check (blocking), frontend lint and build, cfn-lint, and a check that `requirements.txt` matches `uv.lock`. A deploy job (SAM, GitHub OIDC, no stored keys) runs on `main` only once the `AWS_DEPLOY_ROLE_ARN` repository variable is set. ⏳ The first CI result hasn't been checked; see the Actions tab.
 
 ## 14. Build status (Thu 19:15 IST)
 
@@ -395,7 +397,7 @@ Remaining, by owner:
 
 The team deploys on Thursday night, so the first real 06:00 run is **Fri 06:00**, with **Sat 06:00** as a second chance before the video (Sunday is skipped).
 
-Blocker found Thu 19:20: the AWS account is not activated yet. SES, SSM, CloudFormation and EC2 all return `SubscriptionRequired` / `OptInRequired`. Deploy can't start until account activation finishes (payment method and phone verification in the console).
+Done Thu night: new AWS account (the first one was deactivated), IAM admin user instead of root keys, SES sender verified, secrets in SSM from `backend/.env`, stack `airday-prod` deployed, REPLAY test email delivered, planner invoked by hand (worker correctly skipped: past 07:30), chat live on Gemini.
 
 ## 15. Timeline (remaining)
 
