@@ -53,7 +53,7 @@ Conditions:
 Globals:
   Function:
     Runtime: python3.12
-    Architectures: [arm64]
+    Architectures: [x86_64]
     MemorySize: 512
     CodeUri: backend/
     Tracing: Active
