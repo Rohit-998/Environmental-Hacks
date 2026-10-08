@@ -292,9 +292,11 @@
   }
  },
  "official": {
-  "cityAqi": null,
-  "cityAsOf": null,
+  "cityAqi": 374,
+  "cityAsOf": "CPCB bulletin, 18 Nov 2025, 4 PM",
   "citySource": "bulletin",
-  "note": "Fill from the CPCB daily bulletin of the previous day (published ~16:00)."
+  "bulletin": "https://cpcb.gov.in/displaypdf.php?id=<base64 of Downloads/AQI_Bulletin_20251118.pdf>",
+  "stations": "37/39",
+  "note": "Delhi city AQI from the previous day's 4 PM CPCB bulletin: what a principal could know at 06:00."
  }
 }
