@@ -69,10 +69,14 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    from . import envfile
+
     logging.basicConfig(level=logging.INFO)
+    envfile.load()  # backend/.env, if present
     port = int(os.environ.get("PORT", "8000"))
     os.environ.setdefault("ADMIN_KEY", "dev")
-    print(f"AirDay dev API on http://localhost:{port} (admin key: {os.environ['ADMIN_KEY']})")
+    shown = os.environ["ADMIN_KEY"] if os.environ["ADMIN_KEY"] == "dev" else "from backend/.env"
+    print(f"AirDay dev API on http://localhost:{port} (admin key: {shown})")
     ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
 
 
