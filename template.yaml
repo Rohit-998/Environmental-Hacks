@@ -27,11 +27,14 @@ Parameters:
     Description: Allow writes to the public demo school with the admin key. Turn off outside the hackathon.
   ModelProvider:
     Type: String
-    Default: bedrock
-    AllowedValues: [bedrock, litellm]
+    Default: gemini
+    AllowedValues: [gemini, bedrock, litellm]
+    Description: >-
+      gemini only because Bedrock model invocation is blocked on new/free-tier AWS accounts.
+      Switch to bedrock (ModelId global.amazon.nova-2-lite-v1:0) once access is granted.
   ModelId:
     Type: String
-    Default: global.amazon.nova-2-lite-v1:0
+    Default: gemini-3.5-flash
   BedrockRegion:
     Type: String
     Default: ap-south-1
@@ -68,6 +71,7 @@ Globals:
         ADMIN_KEY_PARAM: !Sub /airday/${Stage}/admin-key
         DATA_GOV_KEY_PARAM: !Sub /airday/${Stage}/data-gov-key
         OPENAQ_KEY_PARAM: !Sub /airday/${Stage}/openaq-key
+        GEMINI_KEY_PARAM: !Sub /airday/${Stage}/gemini-key
         DASHBOARD_URL: !Ref DashboardUrl
         DEMO_ADMIN: !Ref DemoAdmin
         STATION_MAX_AGE_MIN: !Ref StationMaxAgeMin

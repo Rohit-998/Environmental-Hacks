@@ -24,6 +24,28 @@ def test_translate_model_failure_is_a_503_agent_error():
     assert e.value.status == 503
 
 
+def quota(system, prompt, tools):
+    raise RuntimeError("429 RESOURCE_EXHAUSTED. You exceeded your current quota")
+
+
+def test_rate_limit_is_a_429_not_a_503():
+    with pytest.raises(agent.AgentError) as e:
+        agent.chat(MemoryStore(), "demo", "Is PE okay today?", [], dt.date(2025, 11, 19), "replay",
+                   runner=quota, tools_factory=lambda b: {})
+    assert e.value.status == 429
+    with pytest.raises(agent.AgentError) as e:
+        agent.translate(MemoryStore(), "demo", "Rehearsal on Monday at 09:30.", runner=quota)
+    assert e.value.status == 429
+
+
+def test_gemini_is_the_default_provider_and_needs_a_key(monkeypatch):
+    monkeypatch.delenv("MODEL_PROVIDER", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    with pytest.raises(agent.AgentError) as e:
+        agent._model()
+    assert e.value.status == 503 and "GEMINI_API_KEY" in e.value.message
+
+
 def test_chat_route_returns_503_when_the_model_fails(monkeypatch):
     monkeypatch.setattr(agent, "strands_runner", boom)
     monkeypatch.setattr(agent.ToolBox, "strands_tools", lambda self: [])

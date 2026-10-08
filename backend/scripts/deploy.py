@@ -25,7 +25,8 @@ from airday import envfile  # noqa: E402
 
 ENV_PATH = os.path.join(BACKEND, ".env")
 FRONTEND_ENV = os.path.join(ROOT, "frontend", ".env.local")
-SECRETS = {"ADMIN_KEY": "admin-key", "DATA_GOV_API_KEY": "data-gov-key", "OPENAQ_API_KEY": "openaq-key"}
+SECRETS = {"ADMIN_KEY": "admin-key", "DATA_GOV_API_KEY": "data-gov-key", "OPENAQ_API_KEY": "openaq-key",
+           "GEMINI_API_KEY": "gemini-key"}
 
 
 def tool(name: str) -> str:

@@ -54,7 +54,22 @@ class AgentError(Exception):
 # ---------------------------------------------------------------- model
 
 def _model():
-    provider = os.environ.get("MODEL_PROVIDER", "bedrock")
+    # Gemini is the default only because Bedrock model invocation is blocked on new/free-tier AWS accounts.
+    # Set MODEL_PROVIDER=bedrock (and MODEL_ID to a Bedrock model) once access is granted; no code change needed.
+    provider = os.environ.get("MODEL_PROVIDER", "gemini")
+    if provider == "gemini":
+        from strands.models.gemini import GeminiModel
+
+        key = os.environ.get("GEMINI_API_KEY")
+        if not key:
+            raise AgentError(503, "Assistant unavailable: GEMINI_API_KEY is not configured.")
+        # Gemini counts its internal reasoning against max_output_tokens, so the limit is set well above the
+        # length of a 2-4 sentence answer.
+        # Bounded so a busy or rate-limited model fails inside the 25 s Lambda timeout (HTTP API limit is 30 s).
+        http = {"timeout": 15_000, "retry_options": {"attempts": 2}}
+        return GeminiModel(client_args={"api_key": key, "http_options": http},
+                           model_id=os.environ.get("MODEL_ID", "gemini-3.5-flash"),
+                           params={"temperature": 0.2, "max_output_tokens": 4096})
     model_id = os.environ.get("MODEL_ID", "global.amazon.nova-2-lite-v1:0")
     if provider == "bedrock":
         from strands.models import BedrockModel
@@ -66,6 +81,11 @@ def _model():
 
         return LiteLLMModel(model_id=model_id, params={"temperature": 0.2, "max_tokens": 600})
     raise AgentError(503, f"unknown MODEL_PROVIDER {provider!r}")
+
+
+def _is_rate_limit(e: Exception) -> bool:
+    text = str(e).lower()
+    return "429" in text or "quota" in text or "resource_exhausted" in text or "throttl" in text
 
 
 def strands_runner(system: str, prompt: str, tools: list) -> str:
@@ -171,6 +191,8 @@ def chat(store: Store, school_id: str, message: str, history: list[dict], contex
             raise
         except Exception as e:  # model or provider failure: chat degrades, the morning plan is unaffected
             log.error("model call failed: %s", e)
+            if _is_rate_limit(e):
+                raise AgentError(429, "The assistant is busy. Try again in a minute.") from None
             raise AgentError(503, "Assistant unavailable right now. The daily plan still works.") from None
         out = _parse(raw)
         problems = check_chat(out, box.rule_ids, box.evaluated) if out is not None else ["output is not JSON"]
@@ -196,6 +218,8 @@ def translate(store: Store, school_id: str, text: str, runner: Runner | None = N
         hi = (runner or strands_runner)(TRANSLATE_SYSTEM, text, []).strip()
     except Exception as e:
         log.error("model call failed: %s", e)
+        if _is_rate_limit(e):
+            raise AgentError(429, "Translation is busy. Try again in a minute.") from None
         raise AgentError(503, "Translation unavailable right now. The line stays in English.") from None
     problems = check_translation(text, hi)
     return {"en": text, "hi": hi if not problems else None, "hiValidated": not problems, "problems": problems}
