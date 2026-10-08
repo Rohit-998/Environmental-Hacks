@@ -1,0 +1,25 @@
+[project]
+name = "airday"
+version = "0.1.0"
+description = "Daily air-safety plans for school timetables"
+requires-python = ">=3.12"
+dependencies = [
+    "pyyaml==6.0.3",
+]
+
+[project.optional-dependencies]
+agent = ["strands-agents==1.10.0"]
+
+[dependency-groups]
+dev = [
+    "pytest==8.4.2",
+    "jsonschema==4.25.1",
+    "boto3==1.40.49",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.uv]
+package = false
