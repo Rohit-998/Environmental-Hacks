@@ -31,7 +31,7 @@ Parameters:
     AllowedValues: [bedrock, litellm]
   ModelId:
     Type: String
-    Default: apac.amazon.nova-lite-v1:0
+    Default: global.amazon.nova-2-lite-v1:0
   BedrockRegion:
     Type: String
     Default: ap-south-1
