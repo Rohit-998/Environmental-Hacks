@@ -12,7 +12,8 @@ import datetime as dt
 import json
 import logging
 import os
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from . import mailer, service
 from . import school as schoolmod
@@ -54,7 +55,7 @@ def _date(q: dict[str, str], name: str = "date", default: dt.date | None = None)
     try:
         return dt.date.fromisoformat(raw)
     except ValueError:
-        raise HttpError(400, f"{name} must be YYYY-MM-DD")
+        raise HttpError(400, f"{name} must be YYYY-MM-DD") from None
 
 
 def _json(body: str | None) -> Any:
@@ -63,7 +64,7 @@ def _json(body: str | None) -> Any:
     try:
         return json.loads(body)
     except json.JSONDecodeError:
-        raise HttpError(400, "body is not valid JSON")
+        raise HttpError(400, "body is not valid JSON") from None
 
 
 EDITABLE = set(schoolmod.SAMPLE_PROFILE)
@@ -184,7 +185,7 @@ def get_replay(store, p, q, body, headers) -> Response:
     try:
         b = service.build_brief(store, sid, date, mode="replay")
     except KeyError as e:
-        raise HttpError(404, str(e).strip("'"))
+        raise HttpError(404, str(e).strip("'")) from None
     service.store_brief(store, sid, b)
     return 200, b
 
@@ -196,7 +197,7 @@ def post_replay_email(store, p, q, body, headers) -> Response:
     try:
         b = service.build_brief(store, sid, date, mode="replay")
     except KeyError as e:
-        raise HttpError(404, str(e).strip("'"))
+        raise HttpError(404, str(e).strip("'")) from None
     return 200, {"sent": True, "messageId": _email_now(store, sid, b)}
 
 
@@ -217,7 +218,7 @@ def get_evaluate(store, p, q, body, headers) -> Response:
         return 200, service.evaluate(store, sid, q.get("type", ""), date, q.get("start", ""), q.get("end", ""),
                                      mode=q.get("mode", "live"))
     except (ValueError, KeyError) as e:
-        raise HttpError(400, str(e).strip("'"))
+        raise HttpError(400, str(e).strip("'")) from None
 
 
 def get_rules(store, p, q, body, headers) -> Response:

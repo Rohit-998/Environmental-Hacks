@@ -117,7 +117,8 @@ def _cached(store: Store, key: str, fetch, ttl: int = CACHE_TTL_S) -> tuple[Any,
     except sources.UpstreamError:
         if item:
             log.warning("upstream failed, using cache for %s", key)
-            return item["raw"], "stale-cache from " + dt.datetime.fromtimestamp(item["fetchedAt"], tu.IST).strftime("%H:%M")
+            fetched = dt.datetime.fromtimestamp(item["fetchedAt"], tu.IST).strftime("%H:%M")
+            return item["raw"], f"stale-cache from {fetched}"
         raise
 
 

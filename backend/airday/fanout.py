@@ -13,7 +13,8 @@ import datetime as dt
 import json
 import logging
 import os
-from typing import Any, Callable, Iterable
+from collections.abc import Callable, Iterable
+from typing import Any
 
 from . import mailer, service
 from . import school as schoolmod

@@ -9,7 +9,8 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 NAMESPACE = os.environ.get("POWERTOOLS_METRICS_NAMESPACE", "AirDay")
 ENABLED = bool(os.environ.get("POWERTOOLS_SERVICE_NAME"))

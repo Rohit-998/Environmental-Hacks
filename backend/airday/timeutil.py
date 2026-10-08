@@ -44,7 +44,7 @@ def to_ist(ts: str) -> dt.datetime:
         ts = ts[:-1] + "+00:00"
     d = dt.datetime.fromisoformat(ts)
     if d.tzinfo is None:
-        d = d.replace(tzinfo=dt.timezone.utc)
+        d = d.replace(tzinfo=dt.UTC)
     return d.astimezone(IST)
 
 

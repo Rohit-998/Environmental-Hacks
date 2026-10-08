@@ -89,7 +89,7 @@ def fetch_observed() -> list[dict]:
     rows_by_loc: dict[int, list[dict]] = defaultdict(list)
     meta: dict[int, tuple[float, float]] = {}
     with cf.ThreadPoolExecutor(max_workers=16) as ex:
-        for (loc, _), rows in zip(jobs, ex.map(lambda j: _day_file(*j), jobs)):
+        for (loc, _), rows in zip(jobs, ex.map(lambda j: _day_file(*j), jobs), strict=True):
             rows_by_loc[loc].extend(rows)
             if rows and loc not in meta:
                 meta[loc] = (float(rows[0]["lat"]), float(rows[0]["lon"]))

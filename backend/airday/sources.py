@@ -59,7 +59,7 @@ def parse_open_meteo(raw: dict) -> dict[str, list[Reading]]:
     """{date: [Reading per hour]} from an Open-Meteo hourly response (times already in IST)."""
     h = raw.get("hourly") or {}
     out: dict[str, list[Reading]] = {}
-    for t, p25, p10 in zip(h.get("time", []), h.get("pm2_5", []), h.get("pm10", [])):
+    for t, p25, p10 in zip(h.get("time", []), h.get("pm2_5", []), h.get("pm10", []), strict=True):
         day, hhmm = t.split("T")
         out.setdefault(day, []).append(Reading(int(hhmm[:2]), p25, p10))
     return out

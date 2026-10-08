@@ -5,7 +5,8 @@ import html
 import logging
 import os
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from .store import ConditionFailed, Store, school_pk
 
@@ -85,7 +86,8 @@ def render_html(brief: dict, dashboard_url: str = "") -> str:
     parts.append(f'<h1 style="font-size:20px;margin:0 0 8px">{e(brief["subject"])}</h1>')
     parts.append(f'<p style="margin:4px 0">{e(_official_line(o))}<br>{e(g["label"])}</p>')
     parts.append(f'<p style="margin:4px 0"><strong>{e(brief["headline"])}</strong></p>')
-    parts.append(f'<h2 style="font-size:16px;margin:16px 0 4px">{"What changes today" if changes else "No changes today"}</h2>')
+    title = "What changes today" if changes else "No changes today"
+    parts.append(f'<h2 style="font-size:16px;margin:16px 0 4px">{title}</h2>')
     if changes:
         parts.append("<ul>" + "".join(row(a) for a in changes) + "</ul>")
     if same:

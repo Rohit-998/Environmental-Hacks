@@ -128,7 +128,7 @@ def load_data():
     for loc, s in fc["stations"].items():
         names[int(loc)] = s["name"]
         h = s["hourly"]
-        for t, p25, p10 in zip(h["time"], h["pm2_5"], h["pm10"]):
+        for t, p25, p10 in zip(h["time"], h["pm2_5"], h["pm10"], strict=True):
             day, hhmm = t.split("T")
             forecast[(int(loc), day)][int(hhmm[:2])] = (p25, p10)
     observed: dict[tuple[int, str], dict[int, tuple]] = defaultdict(dict)

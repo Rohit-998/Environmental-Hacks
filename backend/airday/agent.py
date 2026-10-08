@@ -10,7 +10,8 @@ import json
 import logging
 import os
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from . import service
 from . import timeutil as tu
@@ -31,7 +32,8 @@ Use the tools. Never guess air quality. To judge an activity, call evaluate_acti
 like sports day or excursions as type "pe". Use 24-hour HH:MM times.
 Hourly values are PM2.5 concentrations in µg/m³. Never call an hourly number "AQI".
 Do not give medical advice. Keep answers to 2-4 short sentences in plain English.
-Reply with JSON only: {{"answer": "<text>", "ruleIds": ["<rule IDs returned by evaluate_activity that support the answer>"]}}"""
+Reply with JSON only: {{"answer": "<text>", "ruleIds": ["<IDs from evaluate_activity>"]}}
+ruleIds must list the rule IDs returned by evaluate_activity that support the answer."""
 
 TRANSLATE_SYSTEM = """Translate the school notice into simple Hindi in Devanagari script for parents.
 Keep every number and time exactly as written (you may use Devanagari digits). Output only the translation."""
@@ -201,13 +203,13 @@ def _post_chat(store, p, q, body, headers):
     try:
         context = dt.date.fromisoformat(data["date"]) if data.get("date") else tu.now_ist().date()
     except ValueError:
-        raise HttpError(400, "date must be YYYY-MM-DD")
+        raise HttpError(400, "date must be YYYY-MM-DD") from None
     try:
         return 200, chat(store, sid, data.get("message", ""), data.get("history") or [], context, mode)
     except AgentError as e:
-        raise HttpError(e.status, e.message)
+        raise HttpError(e.status, e.message) from None
     except ImportError:
-        raise HttpError(503, "Assistant unavailable.")
+        raise HttpError(503, "Assistant unavailable.") from None
 
 
 def _post_translate(store, p, q, body, headers):
@@ -218,9 +220,9 @@ def _post_translate(store, p, q, body, headers):
     try:
         return 200, translate(store, sid, _json(body).get("text", ""))
     except AgentError as e:
-        raise HttpError(e.status, e.message)
+        raise HttpError(e.status, e.message) from None
     except ImportError:
-        raise HttpError(503, "Assistant unavailable.")
+        raise HttpError(503, "Assistant unavailable.") from None
 
 
 ROUTES = {("POST", "/chat"): _post_chat, ("POST", "/note/translate"): _post_translate}

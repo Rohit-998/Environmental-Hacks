@@ -54,7 +54,8 @@ class Handler(BaseHTTPRequestHandler):
         query = {k: v[0] for k, v in urllib.parse.parse_qs(url.query).items()}
         length = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(length).decode("utf-8") if length else None
-        status, out = api.route(method, url.path, query, body, dict(self.headers), STORE, EXTRA_ROUTES, claims=self._claims())
+        status, out = api.route(method, url.path, query, body, dict(self.headers), STORE, EXTRA_ROUTES,
+                                claims=self._claims())
         self._send(status, out)
 
     def do_GET(self):  # noqa: N802
