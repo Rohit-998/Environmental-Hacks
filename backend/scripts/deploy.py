@@ -70,6 +70,9 @@ def deploy(env: dict[str, str], stack: str, stage: str, region: str) -> None:
         "DemoAdmin": env.get("DEMO_ADMIN", "true"),
         "DashboardUrl": env.get("DASHBOARD_URL", ""),
         "CorsOrigins": env.get("CORS_ORIGINS", "http://localhost:3000"),
+        # Always passed: sam deploy otherwise reuses the previous stack's values, not the template defaults.
+        "ModelProvider": env.get("MODEL_PROVIDER", "gemini"),
+        "ModelId": env.get("MODEL_ID", "gemini-3.5-flash"),
     }
     overrides = [f"{k}={v}" for k, v in params.items() if v]
     if not params["SesSender"]:
