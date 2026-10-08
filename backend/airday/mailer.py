@@ -124,23 +124,23 @@ def ses_sender(source: str) -> Callable[[str, str, str, str], str]:
     return send
 
 
-def send_daily(store: Store, brief: dict, to: str, send: Callable[[str, str, str, str], str],
+def send_daily(store: Store, school_id: str, brief: dict, to: str, send: Callable[[str, str, str, str], str],
                dashboard_url: str = "", now: Callable[[], float] = time.time) -> dict[str, Any]:
     """Claim, send, record. At most one automatic email per date; a known failure is retried by the
     next invocation (Scheduler retry) up to MAX_ATTEMPTS. Raises on send failure so the caller fails."""
     key = f"EMAIL#{brief['date']}"
     try:
-        claim = store.claim_email(school_pk(), key, now(), MAX_ATTEMPTS)
+        claim = store.claim_email(school_pk(school_id), key, now(), MAX_ATTEMPTS)
     except ConditionFailed as e:
         log.info("email for %s not sent: already %s", brief["date"], e)
         return {"sent": False, "reason": f"already {e}"}
     try:
         mid = send(to, brief["subject"], render_text(brief, dashboard_url), render_html(brief, dashboard_url))
     except Exception as e:
-        store.set_email_status(school_pk(), key, "FAILED", now(), error=str(e)[:300])
+        store.set_email_status(school_pk(school_id), key, "FAILED", now(), error=str(e)[:300])
         log.error("email send failed (attempt %s): %s", claim["attempts"], e)
         raise
-    store.set_email_status(school_pk(), key, "SENT", now(), messageId=mid)
+    store.set_email_status(school_pk(school_id), key, "SENT", now(), messageId=mid)
     return {"sent": True, "messageId": mid, "attempts": claim["attempts"]}
 
 

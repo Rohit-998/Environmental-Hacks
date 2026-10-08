@@ -1,11 +1,14 @@
 """HTTP API router shared by the Lambda handler and the local dev server.
 
-route(method, path, query, body, headers, store) -> (status, json-able body)
+route(method, path, query, body, headers, store, claims=None) -> (status, json-able body)
+
+Two route trees with the same handlers:
+  /...     public demo school (read-only; writes need the demo admin key)
+  /me/...  the signed-in user's own school (JWT verified by API Gateway, claims passed in)
 """
 from __future__ import annotations
 
 import datetime as dt
-import hmac
 import json
 import logging
 import os
@@ -14,13 +17,15 @@ from typing import Any, Callable
 from . import mailer, service
 from . import school as schoolmod
 from . import timeutil as tu
+from .auth import Principal, demo_principal, user_principal
 from .rules import load
-from .store import Store, school_pk
+from .store import Store
 from .validator import BriefInvalid
 
 log = logging.getLogger("airday")
 
 Response = tuple[int, Any]
+Handler = Callable[[Store, Principal, dict, str | None, dict], Response]
 
 
 class HttpError(Exception):
@@ -29,17 +34,15 @@ class HttpError(Exception):
         self.status, self.message, self.extra = status, message, extra
 
 
-def admin_key() -> str | None:
-    return os.environ.get("ADMIN_KEY") or None
+def require_write(p: Principal) -> None:
+    if not p.can_write:
+        raise HttpError(401, "sign in, or add the demo admin key, to make changes")
 
 
-def require_admin(headers: dict[str, str]) -> None:
-    expected = admin_key()
-    got = headers.get("x-admin-key", "")
-    if not expected:
-        raise HttpError(503, "admin key is not configured on the server")
-    if not hmac.compare_digest(got.encode(), expected.encode()):
-        raise HttpError(401, "admin key missing or wrong")
+def require_school(p: Principal) -> str:
+    if not p.school_id:
+        raise HttpError(404, "no school yet: create one with POST /me/school")
+    return p.school_id
 
 
 def _date(q: dict[str, str], name: str = "date", default: dt.date | None = None) -> dt.date:
@@ -63,18 +66,11 @@ def _json(body: str | None) -> Any:
         raise HttpError(400, "body is not valid JSON")
 
 
-# ---------------------------------------------------------------- handlers
-
-def get_school(store, q, body, headers) -> Response:
-    return 200, schoolmod.public_profile(service.get_profile(store))
+EDITABLE = set(schoolmod.SAMPLE_PROFILE)
 
 
-def put_school(store, q, body, headers) -> Response:
-    require_admin(headers)
-    current = service.get_profile(store)
-    patch = _json(body)
-    allowed = set(schoolmod.SAMPLE_PROFILE)
-    unknown = sorted(set(patch) - allowed)
+def _apply_patch(current: dict, patch: dict) -> dict:
+    unknown = sorted(set(patch) - EDITABLE)
     if unknown:
         raise HttpError(400, f"unknown fields: {', '.join(unknown)}")
     new = current | patch
@@ -85,97 +81,128 @@ def put_school(store, q, body, headers) -> Response:
     errs = schoolmod.validate_profile(new)
     if errs:
         raise HttpError(400, "invalid profile", errors=errs)
-    store.put(school_pk(), "PROFILE", new)
+    return new
+
+
+# ---------------------------------------------------------------- handlers
+
+def get_me(store, p, q, body, headers) -> Response:
+    return 200, p.public()
+
+
+def create_school(store, p, q, body, headers) -> Response:
+    if p.kind != "user":
+        raise HttpError(401, "sign in to create a school")
+    if p.school_id:
+        raise HttpError(409, "you already have a school", schoolId=p.school_id)
+    patch = _json(body)
+    profile = _apply_patch(dict(schoolmod.SAMPLE_PROFILE), patch)
+    school_id = service.create_school(store, profile, owner=p.sub)
+    return 201, {"schoolId": school_id, **schoolmod.public_profile(profile)}
+
+
+def get_school(store, p, q, body, headers) -> Response:
+    sid = require_school(p)
+    return 200, schoolmod.public_profile(service.get_profile(store, sid))
+
+
+def put_school(store, p, q, body, headers) -> Response:
+    require_write(p)
+    sid = require_school(p)
+    new = _apply_patch(service.get_profile(store, sid), _json(body))
+    service.save_profile(store, sid, new)
     return 200, schoolmod.public_profile(new)
 
 
-def get_activities(store, q, body, headers) -> Response:
-    return 200, {"activities": service.get_timetable(store)}
+def get_activities(store, p, q, body, headers) -> Response:
+    return 200, {"activities": service.get_timetable(store, require_school(p))}
 
 
-def put_activities(store, q, body, headers) -> Response:
-    require_admin(headers)
-    p = service.get_profile(store)
-    ctype = headers.get("content-type", "")
-    if "json" in ctype:
+def put_activities(store, p, q, body, headers) -> Response:
+    require_write(p)
+    sid = require_school(p)
+    prof = service.get_profile(store, sid)
+    if "json" in headers.get("content-type", ""):
         data = _json(body)
         rows = data.get("activities") if isinstance(data, dict) else None
         if not isinstance(rows, list):
             raise HttpError(400, "body must be {activities: [...]}")
-        errors = schoolmod.validate_rows(rows, p["start"], p["end"])
+        errors = schoolmod.validate_rows(rows, prof["start"], prof["end"])
         if errors:
             return 400, {"error": "some rows are invalid", "rowErrors": errors}
         parsed = rows
     else:
-        parsed, errors = schoolmod.parse_timetable_csv(body or "", p["start"], p["end"])
+        parsed, errors = schoolmod.parse_timetable_csv(body or "", prof["start"], prof["end"])
         if errors:
             return 400, {"error": "some rows are invalid", "rowErrors": errors, "validRows": len(parsed)}
     rows = schoolmod.with_ids(parsed)
-    service.replace_timetable(store, rows)
+    service.replace_timetable(store, sid, rows)
     return 200, {"activities": rows}
 
 
-def get_sample_timetable(store, q, body, headers) -> Response:
+def get_sample_timetable(store, p, q, body, headers) -> Response:
     return 200, {"csv": schoolmod.SAMPLE_CSV}
 
 
-def get_brief(store, q, body, headers) -> Response:
+def get_brief(store, p, q, body, headers) -> Response:
+    sid = require_school(p)
     date = _date(q, default=tu.now_ist().date())
-    b = service.get_stored(store, date.isoformat(), "live")
+    b = service.get_stored(store, sid, date.isoformat(), "live")
     if b is None:
         raise HttpError(404, f"no brief stored for {date}")
     return 200, b
 
 
-def get_brief_live(store, q, body, headers) -> Response:
+def get_brief_live(store, p, q, body, headers) -> Response:
+    sid = require_school(p)
     date = _date(q, default=tu.now_ist().date())
-    try:
-        b = service.build_brief(store, date, mode="live")
-    except BriefInvalid as e:
-        raise HttpError(500, "brief failed validation", problems=e.problems)
-    stored = service.get_stored(store, date.isoformat(), "live")
+    b = service.build_brief(store, sid, date, mode="live")
+    stored = service.get_stored(store, sid, date.isoformat(), "live")
     b["changedSinceEmail"] = service.diff(stored, b)
     b["emailedAt"] = (stored or {}).get("generatedAt")
     return 200, b
 
 
-def post_regenerate(store, q, body, headers) -> Response:
-    require_admin(headers)
+def post_regenerate(store, p, q, body, headers) -> Response:
+    require_write(p)
+    sid = require_school(p)
     date = _date(q, default=tu.now_ist().date())
-    b = service.build_brief(store, date, mode="live")
-    service.store_brief(store, b)
+    b = service.build_brief(store, sid, date, mode="live")
+    service.store_brief(store, sid, b)
     if q.get("resend") == "true":
-        _email_now(store, b)
+        _email_now(store, sid, b)
     return 200, b
 
 
-def get_replay_dates(store, q, body, headers) -> Response:
+def get_replay_dates(store, p, q, body, headers) -> Response:
     return 200, {"dates": service.replay_dates()}
 
 
-def get_replay(store, q, body, headers) -> Response:
+def get_replay(store, p, q, body, headers) -> Response:
+    sid = require_school(p)
     date = _date(q)
     try:
-        b = service.build_brief(store, date, mode="replay")
+        b = service.build_brief(store, sid, date, mode="replay")
     except KeyError as e:
-        raise HttpError(404, str(e))
-    service.store_brief(store, b)
+        raise HttpError(404, str(e).strip("'"))
+    service.store_brief(store, sid, b)
     return 200, b
 
 
-def post_replay_email(store, q, body, headers) -> Response:
-    require_admin(headers)
+def post_replay_email(store, p, q, body, headers) -> Response:
+    require_write(p)
+    sid = require_school(p)
     date = _date(q)
     try:
-        b = service.build_brief(store, date, mode="replay")
+        b = service.build_brief(store, sid, date, mode="replay")
     except KeyError as e:
-        raise HttpError(404, str(e))
-    return 200, {"sent": True, "messageId": _email_now(store, b)}
+        raise HttpError(404, str(e).strip("'"))
+    return 200, {"sent": True, "messageId": _email_now(store, sid, b)}
 
 
-def _email_now(store: Store, b: dict) -> str:
+def _email_now(store: Store, school_id: str, b: dict) -> str:
     send = mailer.configured_sender()
-    to = service.get_profile(store).get("principalEmail")
+    to = service.get_profile(store, school_id).get("principalEmail")
     if not send:
         raise HttpError(503, "email is not configured (SES_SENDER)")
     if not to:
@@ -183,47 +210,64 @@ def _email_now(store: Store, b: dict) -> str:
     return mailer.send_once_more(b, to, send, os.environ.get("DASHBOARD_URL", ""))
 
 
-def get_evaluate(store, q, body, headers) -> Response:
+def get_evaluate(store, p, q, body, headers) -> Response:
+    sid = require_school(p)
     date = _date(q)
-    mode = q.get("mode", "live")
     try:
-        return 200, service.evaluate(store, q.get("type", ""), date, q.get("start", ""), q.get("end", ""), mode=mode)
+        return 200, service.evaluate(store, sid, q.get("type", ""), date, q.get("start", ""), q.get("end", ""),
+                                     mode=q.get("mode", "live"))
     except (ValueError, KeyError) as e:
-        raise HttpError(400, str(e))
+        raise HttpError(400, str(e).strip("'"))
 
 
-def get_rules(store, q, body, headers) -> Response:
+def get_rules(store, p, q, body, headers) -> Response:
     rs = load()
     return 200, {"version": rs.version, "bands": {"order": rs.order, "names": rs.names,
                  "pm25Upper": rs.pm25_upper, "pm10Upper": rs.pm10_upper},
                  "rules": [r.__dict__ for r in rs.rules.values()]}
 
 
-def get_health(store, q, body, headers) -> Response:
+def get_health(store, p, q, body, headers) -> Response:
     return 200, {"ok": True, "time": tu.now_ist().isoformat(timespec="seconds")}
 
 
-ROUTES: dict[tuple[str, str], Callable[..., Response]] = {
-    ("GET", "/health"): get_health,
+# Routes available under both / (demo) and /me (signed-in school).
+TENANT_ROUTES: dict[tuple[str, str], Handler] = {
     ("GET", "/school"): get_school,
     ("PUT", "/school"): put_school,
     ("GET", "/activities"): get_activities,
     ("PUT", "/activities"): put_activities,
-    ("GET", "/activities/sample"): get_sample_timetable,
     ("GET", "/brief"): get_brief,
     ("GET", "/brief/live"): get_brief_live,
     ("POST", "/brief/regenerate"): post_regenerate,
-    ("GET", "/replay/dates"): get_replay_dates,
     ("GET", "/replay"): get_replay,
     ("POST", "/replay/email"): post_replay_email,
     ("GET", "/evaluate"): get_evaluate,
+}
+PUBLIC_ROUTES: dict[tuple[str, str], Handler] = {
+    ("GET", "/health"): get_health,
     ("GET", "/rules"): get_rules,
+    ("GET", "/replay/dates"): get_replay_dates,
+    ("GET", "/activities/sample"): get_sample_timetable,
+}
+ME_ONLY: dict[tuple[str, str], Handler] = {
+    ("GET", "/me"): get_me,
+    ("POST", "/me/school"): create_school,
 }
 
 
-def route(method: str, path: str, query: dict[str, str], body: str | None,
-          headers: dict[str, str], store: Store, extra: dict | None = None) -> Response:
-    routes = ROUTES | (extra or {})
+def build_routes(extra_tenant: dict | None = None) -> dict[tuple[str, str], Handler]:
+    tenant = TENANT_ROUTES | (extra_tenant or {})
+    routes = dict(PUBLIC_ROUTES) | ME_ONLY
+    for (m, path), fn in tenant.items():
+        routes[(m, path)] = fn
+        routes[(m, "/me" + path)] = fn
+    return routes
+
+
+def route(method: str, path: str, query: dict[str, str], body: str | None, headers: dict[str, str],
+          store: Store, extra: dict | None = None, claims: dict | None = None) -> Response:
+    routes = build_routes(extra)
     headers = {k.lower(): v for k, v in (headers or {}).items()}
     path = "/" + path.strip("/")
     fn = routes.get((method.upper(), path))
@@ -232,12 +276,22 @@ def route(method: str, path: str, query: dict[str, str], body: str | None,
             return 405, {"error": "method not allowed"}
         return 404, {"error": "not found"}
     try:
-        return fn(store, query or {}, body, headers)
+        if path == "/me" or path.startswith("/me/"):
+            if not claims:
+                return 401, {"error": "sign in required"}
+            principal = user_principal(store, claims)
+        else:
+            principal = demo_principal(headers)
+        return fn(store, principal, query or {}, body, headers)
     except HttpError as e:
         return e.status, {"error": e.message, **e.extra}
+    except service.SchoolNotFound:
+        return 404, {"error": "school not found"}
     except BriefInvalid as e:
         log.error("brief invalid: %s", e.problems)
         return 500, {"error": "brief failed validation", "problems": e.problems}
+    except PermissionError as e:
+        return 401, {"error": str(e)}
     except Exception:
         log.exception("unhandled error on %s %s", method, path)
         return 500, {"error": "internal error"}
