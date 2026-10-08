@@ -1,4 +1,5 @@
-import type { ActivityRow, Brief, ChatReply, Evaluation, Profile, Rule, RowError } from "./types";
+import { authHeaders } from "./session";
+import type { ActivityRow, Brief, ChatReply, Evaluation, Me, Profile, Rule, RowError } from "./types";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 const KEY_STORAGE = "airday-admin-key";
@@ -13,7 +14,7 @@ export class ApiError extends Error {
   }
 }
 
-// The admin key lives in sessionStorage only: never in the build, cleared when the tab closes.
+// Demo admin key: sessionStorage only, never in the build, cleared when the tab closes.
 export function getAdminKey(): string {
   if (typeof window === "undefined") return "";
   return window.sessionStorage.getItem(KEY_STORAGE) || "";
@@ -24,7 +25,14 @@ export function setAdminKey(key: string): void {
   else window.sessionStorage.removeItem(KEY_STORAGE);
 }
 
-async function request<T>(method: string, path: string, opts: { body?: unknown; csv?: string; admin?: boolean } = {}): Promise<T> {
+interface Opts {
+  body?: unknown;
+  csv?: string;
+  // Tenant routes go to /me/... for a signed-in principal and to the public demo school otherwise.
+  tenant?: boolean;
+}
+
+async function request<T>(method: string, path: string, opts: Opts = {}): Promise<T> {
   const headers: Record<string, string> = {};
   let body: string | undefined;
   if (opts.csv !== undefined) {
@@ -34,10 +42,22 @@ async function request<T>(method: string, path: string, opts: { body?: unknown; 
     headers["content-type"] = "application/json";
     body = JSON.stringify(opts.body);
   }
-  if (opts.admin) headers["x-admin-key"] = getAdminKey();
+  let url = path;
+  if (opts.tenant || path === "/me" || path.startsWith("/me/")) {
+    const auth = await authHeaders();
+    if (auth) {
+      Object.assign(headers, auth);
+      if (opts.tenant) url = `/me${path}`;
+    } else if (path.startsWith("/me")) {
+      throw new ApiError(401, "Sign in first.");
+    } else {
+      const key = getAdminKey();
+      if (key) headers["x-admin-key"] = key;
+    }
+  }
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, { method, headers, body });
+    res = await fetch(`${API_URL}${url}`, { method, headers, body });
   } catch {
     throw new ApiError(0, "Can't reach the AirDay server. Check your connection and try again.");
   }
@@ -51,27 +71,30 @@ const q = (params: Record<string, string | undefined>) => {
   return s ? `?${s}` : "";
 };
 
+const T = { tenant: true } as const;
+
 export const api = {
-  school: () => request<Profile>("GET", "/school"),
-  updateSchool: (patch: Partial<Profile> & { principalEmail?: string }) =>
-    request<Profile>("PUT", "/school", { body: patch, admin: true }),
-  activities: () => request<{ activities: ActivityRow[] }>("GET", "/activities"),
-  uploadCsv: (csv: string) => request<{ activities: ActivityRow[] }>("PUT", "/activities", { csv, admin: true }),
+  me: () => request<Me>("GET", "/me"),
+  createSchool: (p: Partial<Profile> & { principalEmail?: string }) => request<Profile & { schoolId: string }>("POST", "/me/school", { body: p }),
+  school: () => request<Profile>("GET", "/school", T),
+  updateSchool: (patch: Partial<Profile> & { principalEmail?: string }) => request<Profile>("PUT", "/school", { ...T, body: patch }),
+  activities: () => request<{ activities: ActivityRow[] }>("GET", "/activities", T),
+  uploadCsv: (csv: string) => request<{ activities: ActivityRow[] }>("PUT", "/activities", { ...T, csv }),
   sampleCsv: () => request<{ csv: string }>("GET", "/activities/sample"),
-  briefLive: (date?: string) => request<Brief>("GET", `/brief/live${q({ date })}`),
+  briefLive: (date?: string) => request<Brief>("GET", `/brief/live${q({ date })}`, T),
   regenerate: (date: string, resend = false) =>
-    request<Brief>("POST", `/brief/regenerate${q({ date, resend: resend ? "true" : undefined })}`, { admin: true }),
+    request<Brief>("POST", `/brief/regenerate${q({ date, resend: resend ? "true" : undefined })}`, T),
   replayDates: () => request<{ dates: string[] }>("GET", "/replay/dates"),
-  replay: (date: string) => request<Brief>("GET", `/replay${q({ date })}`),
-  emailReplay: (date: string) => request<{ sent: boolean }>("POST", `/replay/email${q({ date })}`, { admin: true }),
+  replay: (date: string) => request<Brief>("GET", `/replay${q({ date })}`, T),
+  emailReplay: (date: string) => request<{ sent: boolean }>("POST", `/replay/email${q({ date })}`, T),
   evaluate: (p: { type: string; date: string; start: string; end: string; mode: string }) =>
-    request<Evaluation>("GET", `/evaluate${q(p)}`),
+    request<Evaluation>("GET", `/evaluate${q(p)}`, T),
   chat: (p: { message: string; history: { role: string; content: string }[]; date: string; mode: string }) =>
-    request<ChatReply>("POST", "/chat", { body: p }),
+    request<ChatReply>("POST", "/chat", { ...T, body: p }),
   translate: (text: string) =>
     request<{ en: string; hi: string | null; hiValidated: boolean; problems: string[] }>("POST", "/note/translate", {
+      ...T,
       body: { text },
-      admin: true,
     }),
   rules: () => request<{ version: string; rules: Rule[] }>("GET", "/rules"),
 };

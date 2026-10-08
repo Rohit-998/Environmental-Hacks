@@ -69,6 +69,13 @@ export interface Brief {
   emailedAt?: string | null;
 }
 
+export interface Me {
+  kind: "user" | "demo-admin" | "anonymous";
+  schoolId: string | null;
+  canWrite: boolean;
+  demo: boolean;
+}
+
 export interface Profile {
   name: string;
   locality: string;
