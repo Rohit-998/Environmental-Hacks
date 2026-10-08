@@ -5,10 +5,11 @@ description = "Daily air-safety plans for school timetables"
 requires-python = ">=3.12"
 dependencies = [
     "pyyaml==6.0.3",
+    "aws-lambda-powertools[tracer]==3.35.0",
 ]
 
 [project.optional-dependencies]
-agent = ["strands-agents==1.10.0"]
+agent = ["strands-agents==1.58.1"]
 
 [dependency-groups]
 dev = [
