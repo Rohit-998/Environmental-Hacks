@@ -1,0 +1,136 @@
+# AirDay rules: the single source of truth.
+# The engine, validator, dashboard "About the rules" page and tests all read this file.
+# Rule IDs never change meaning. Bump `version` on any edit.
+version: "2026-10-08.1"
+
+# CPCB National AQI breakpoints used as half-open concentration bands (µg/m³).
+# Each value is the upper bound of the band (inclusive). Severe is everything above Very Poor.
+# These are 24-hour definitions; applying them to hourly values is AirDay's own cautious choice.
+bands:
+  order: [good, satisfactory, moderate, poor, very_poor, severe]
+  names:
+    good: Good
+    satisfactory: Satisfactory
+    moderate: Moderate
+    poor: Poor
+    very_poor: Very Poor
+    severe: Severe
+    unknown: Unknown
+  hindi:
+    good: अच्छी
+    satisfactory: संतोषजनक
+    moderate: मध्यम
+    poor: खराब
+    very_poor: बहुत खराब
+    severe: गंभीर
+    unknown: अज्ञात
+  pm25_upper: {good: 30, satisfactory: 60, moderate: 90, poor: 120, very_poor: 250}
+  pm10_upper: {good: 50, satisfactory: 100, moderate: 250, poor: 350, very_poor: 430}
+  # Values outside this range are treated as missing.
+  valid_max: 1000
+
+codes:
+  bands: {good: G, satisfactory: S, moderate: MOD, poor: P, very_poor: VP, severe: SV, unknown: UNK}
+  scopes: {assembly: ASM, recess: REC, pe: PE, window: WIN, note: NOTE}
+
+# Templates use {label}, {start}, {end} for activities and windows, {hours} for notes.
+# basis: direct = restates a cited source; derived = AirDay's interpretation of it.
+# change: true puts the action under "What changes today".
+rules:
+  # ---------------- Assembly
+  - {id: R-G-ASM, band: good, scope: assembly, change: false, basis: derived, source: cpcb_naqi_2014,
+     en: "{label} ({start}–{end}): outdoors as normal."}
+  - {id: R-S-ASM, band: satisfactory, scope: assembly, change: false, basis: derived, source: cpcb_naqi_2014,
+     en: "{label} ({start}–{end}): outdoors as normal."}
+  - {id: R-MOD-ASM, band: moderate, scope: assembly, change: false, basis: derived, source: cpcb_naqi_2014,
+     en: "{label} ({start}–{end}): outdoors as normal."}
+  - {id: R-P-ASM, band: poor, scope: assembly, change: true, basis: derived, source: cpcb_naqi_2014,
+     en: "{label} ({start}–{end}): outdoors, keep it under 10 minutes."}
+  - {id: R-VP-ASM, band: very_poor, scope: assembly, change: true, basis: derived, source: cpcb_naqi_2014,
+     en: "{label} ({start}–{end}): hold indoors."}
+  - {id: R-SV-ASM, band: severe, scope: assembly, change: true, basis: derived, source: cpcb_naqi_2014,
+     en: "{label} ({start}–{end}): hold indoors."}
+  - {id: R-UNK-ASM, band: unknown, scope: assembly, change: true, basis: derived, source: airday_policy,
+     en: "{label} ({start}–{end}): air data is missing for this time. Check the official AQI before going outdoors."}
+
+  # ---------------- Recess
+  - {id: R-G-REC, band: good, scope: recess, change: false, basis: derived, source: cpcb_naqi_2014,
+     en: "{label} ({start}–{end}): outdoors as normal."}
+  - {id: R-S-REC, band: satisfactory, scope: recess, change: false, basis: derived, source: cpcb_naqi_2014,
+     en: "{label} ({start}–{end}): outdoors as normal."}
+  - {id: R-MOD-REC, band: moderate, scope: recess, change: false, basis: derived, source: cpcb_naqi_2014,
+     en: "{label} ({start}–{end}): outdoors as normal."}
+  - {id: R-P-REC, band: poor, scope: recess, change: true, basis: derived, source: exertion_guidance,
+     en: "{label} ({start}–{end}): outdoors but shortened, no running games."}
+  - {id: R-VP-REC, band: very_poor, scope: recess, change: true, basis: derived, source: exertion_guidance,
+     en: "{label} ({start}–{end}): hold indoors."}
+  - {id: R-SV-REC, band: severe, scope: recess, change: true, basis: derived, source: exertion_guidance,
+     en: "{label} ({start}–{end}): hold indoors."}
+  - {id: R-UNK-REC, band: unknown, scope: recess, change: true, basis: derived, source: airday_policy,
+     en: "{label} ({start}–{end}): air data is missing for this time. Check the official AQI before going outdoors."}
+
+  # ---------------- PE / sports
+  - {id: R-G-PE, band: good, scope: pe, change: false, basis: derived, source: cpcb_naqi_2014,
+     en: "{label} ({start}–{end}): outdoors as normal."}
+  - {id: R-S-PE, band: satisfactory, scope: pe, change: false, basis: derived, source: cpcb_naqi_2014,
+     en: "{label} ({start}–{end}): outdoors as normal."}
+  - {id: R-MOD-PE, band: moderate, scope: pe, change: false, basis: derived, source: cpcb_naqi_2014,
+     en: "{label} ({start}–{end}): outdoors as normal. Students with asthma may sit out."}
+  - {id: R-P-PE, band: poor, scope: pe, change: true, basis: derived, source: exertion_guidance,
+     en: "{label} ({start}–{end}): move indoors for light activity."}
+  - {id: R-VP-PE, band: very_poor, scope: pe, change: true, basis: derived, source: exertion_guidance,
+     en: "{label} ({start}–{end}): move indoors for light activity."}
+  - {id: R-SV-PE, band: severe, scope: pe, change: true, basis: derived, source: exertion_guidance,
+     en: "{label} ({start}–{end}): cancel; hold a classroom lesson instead."}
+  - {id: R-UNK-PE, band: unknown, scope: pe, change: true, basis: derived, source: airday_policy,
+     en: "{label} ({start}–{end}): air data is missing for this time. Check the official AQI before going outdoors."}
+
+  # ---------------- Windows (hour-bound). instruction: open | closed
+  - {id: R-G-WIN, band: good, scope: window, change: false, instruction: open, basis: derived, source: airday_policy,
+     en: "Windows {start}–{end}: open as normal."}
+  - {id: R-S-WIN, band: satisfactory, scope: window, change: false, instruction: open, basis: derived, source: airday_policy,
+     en: "Windows {start}–{end}: open as normal."}
+  - {id: R-MOD-WIN, band: moderate, scope: window, change: false, instruction: open, basis: derived, source: airday_policy,
+     en: "Windows {start}–{end}: open as normal."}
+  - {id: R-P-WIN, band: poor, scope: window, change: true, instruction: closed, basis: derived, source: airday_policy,
+     en: "Windows {start}–{end}: keep closed."}
+  - {id: R-VP-WIN, band: very_poor, scope: window, change: true, instruction: closed, basis: derived, source: airday_policy,
+     en: "Windows {start}–{end}: keep closed."}
+  - {id: R-SV-WIN, band: severe, scope: window, change: true, instruction: closed, basis: derived, source: airday_policy,
+     en: "Windows {start}–{end}: keep closed."}
+  - {id: R-UNK-WIN, band: unknown, scope: window, change: true, instruction: closed, basis: derived, source: airday_policy,
+     en: "Windows {start}–{end}: keep closed until air data returns."}
+
+  # ---------------- Parent note (one per day, worst known band in school hours)
+  - {id: R-G-NOTE, band: good, scope: note, change: false, emit: false, basis: derived, source: airday_policy, en: "", hi: ""}
+  - {id: R-S-NOTE, band: satisfactory, scope: note, change: false, emit: false, basis: derived, source: airday_policy, en: "", hi: ""}
+  - {id: R-MOD-NOTE, band: moderate, scope: note, change: false, emit: false, basis: derived, source: airday_policy, en: "", hi: ""}
+  - id: R-P-NOTE
+    band: poor
+    scope: note
+    change: false
+    emit: true
+    optional: true
+    basis: derived
+    source: cpcb_naqi_2014
+    en: "Dear parents, air quality is expected to be in the Poor range today ({hours}). Outdoor activities will be shortened. Students with asthma should carry their inhaler."
+    hi: "प्रिय अभिभावक, आज ({hours}) हवा की गुणवत्ता 'खराब' रहने की संभावना है। बाहर की गतिविधियाँ कम समय की होंगी। अस्थमा वाले बच्चे अपना इनहेलर साथ रखें।"
+  - id: R-VP-NOTE
+    band: very_poor
+    scope: note
+    change: true
+    emit: true
+    basis: derived
+    source: cpcb_naqi_2014
+    en: "Dear parents, air quality is expected to be in the Very Poor range today ({hours}). Outdoor activities during these hours will be held indoors. Please send your child with a mask and a water bottle, and tell the school if they have a cough or trouble breathing."
+    hi: "प्रिय अभिभावक, आज ({hours}) हवा की गुणवत्ता 'बहुत खराब' रहने की संभावना है। इस समय की बाहरी गतिविधियाँ अंदर होंगी। कृपया बच्चे को मास्क और पानी की बोतल के साथ भेजें, और खांसी या सांस लेने में तकलीफ़ हो तो स्कूल को बताएं।"
+  - id: R-SV-NOTE
+    band: severe
+    scope: note
+    change: true
+    emit: true
+    basis: derived
+    source: cpcb_naqi_2014
+    en: "Dear parents, air quality is expected to be in the Severe range today ({hours}). All outdoor activities are cancelled and will be held indoors. Please send your child with a mask and a water bottle, tell the school about any cough or trouble breathing, and watch for school notices, as government orders may change timings."
+    hi: "प्रिय अभिभावक, आज ({hours}) हवा की गुणवत्ता 'गंभीर' रहने की संभावना है। बाहर की सभी गतिविधियाँ रद्द हैं और अंदर होंगी। कृपया बच्चे को मास्क और पानी की बोतल के साथ भेजें, खांसी या सांस की तकलीफ़ हो तो स्कूल को बताएं, और स्कूल की सूचनाओं पर ध्यान दें क्योंकि सरकारी आदेशों से समय बदल सकता है।"
+  - {id: R-UNK-NOTE, band: unknown, scope: note, change: false, emit: false, basis: derived, source: airday_policy, en: "", hi: ""}
