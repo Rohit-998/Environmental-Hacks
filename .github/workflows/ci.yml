@@ -34,9 +34,7 @@ jobs:
         run: |
           uv run python -m backtest.run > /dev/null
           git diff --exit-code -- backtest/report.json
-      - name: Release check (rule sources read)
-        # Informational until the team has read the sources; flip to blocking before submission.
-        continue-on-error: true
+      - name: Release check (every emitted rule cites a source that has been read)
         run: RELEASE=1 uv run pytest -q tests/test_rules.py
 
   frontend:
