@@ -53,7 +53,22 @@ class AgentError(Exception):
 
 # ---------------------------------------------------------------- model
 
-def _model():
+DEFAULT_GEMINI = "gemini-3.5-flash"
+# Tried in order when the previous model is rate-limited or overloaded. Free-tier quotas are per model.
+DEFAULT_GEMINI_FALLBACKS = "gemini-3.5-flash-lite,gemini-3.1-flash-lite"
+
+
+def model_ids() -> list[str]:
+    """Primary model, then fallbacks (MODEL_FALLBACKS, comma-separated). Only Gemini uses fallbacks."""
+    provider = os.environ.get("MODEL_PROVIDER", "gemini")
+    if provider != "gemini":
+        return [os.environ.get("MODEL_ID", "global.amazon.nova-2-lite-v1:0")]
+    primary = os.environ.get("MODEL_ID", DEFAULT_GEMINI)
+    extra = [m.strip() for m in os.environ.get("MODEL_FALLBACKS", DEFAULT_GEMINI_FALLBACKS).split(",") if m.strip()]
+    return [primary] + [m for m in extra if m != primary]
+
+
+def _model(model_id: str | None = None):
     # Gemini is the default only because Bedrock model invocation is blocked on new/free-tier AWS accounts.
     # Set MODEL_PROVIDER=bedrock (and MODEL_ID to a Bedrock model) once access is granted; no code change needed.
     provider = os.environ.get("MODEL_PROVIDER", "gemini")
@@ -64,11 +79,11 @@ def _model():
         if not key:
             raise AgentError(503, "Assistant unavailable: GEMINI_API_KEY is not configured.")
         # Gemini counts its internal reasoning against max_output_tokens, so the limit is set well above the
-        # length of a 2-4 sentence answer.
-        # Bounded so a busy or rate-limited model fails inside the 25 s Lambda timeout (HTTP API limit is 30 s).
-        http = {"timeout": 15_000, "retry_options": {"attempts": 2}}
+        # length of a 2-4 sentence answer. Each attempt is bounded so the primary plus a fallback fit inside
+        # the 25 s Lambda timeout (HTTP API limit is 30 s).
+        http = {"timeout": 10_000, "retry_options": {"attempts": 1}}
         return GeminiModel(client_args={"api_key": key, "http_options": http},
-                           model_id=os.environ.get("MODEL_ID", "gemini-3.5-flash"),
+                           model_id=model_id or os.environ.get("MODEL_ID", DEFAULT_GEMINI),
                            params={"temperature": 0.2, "max_output_tokens": 4096})
     model_id = os.environ.get("MODEL_ID", "global.amazon.nova-2-lite-v1:0")
     if provider == "bedrock":
@@ -88,11 +103,31 @@ def _is_rate_limit(e: Exception) -> bool:
     return "429" in text or "quota" in text or "resource_exhausted" in text or "throttl" in text
 
 
+def _is_overloaded(e: Exception) -> bool:
+    text = str(e).lower()
+    return "503" in text or "unavailable" in text or "high demand" in text or "overloaded" in text
+
+
 def strands_runner(system: str, prompt: str, tools: list) -> str:
+    """Run one agent turn, moving to the next model when one is rate-limited or overloaded.
+
+    No Strands-level retries: its backoff on 429s outlasts the Lambda timeout and turns a quota hit into a 500.
+    Each model gets one attempt; tool calls already made are idempotent reads, so retrying on another model is safe.
+    """
     from strands import Agent
 
-    agent = Agent(model=_model(), system_prompt=system, tools=tools, callback_handler=None)
-    return str(agent(prompt))
+    last: Exception | None = None
+    for model_id in model_ids():
+        agent = Agent(model=_model(model_id), system_prompt=system, tools=tools, callback_handler=None,
+                      retry_strategy=None)
+        try:
+            return str(agent(prompt))
+        except Exception as e:
+            if not (_is_rate_limit(e) or _is_overloaded(e)):
+                raise
+            log.warning("model %s unavailable (%s), trying the next one", model_id, str(e)[:120])
+            last = e
+    raise last if last else RuntimeError("no model configured")
 
 
 # ---------------------------------------------------------------- tools

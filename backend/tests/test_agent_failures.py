@@ -46,6 +46,66 @@ def test_gemini_is_the_default_provider_and_needs_a_key(monkeypatch):
     assert e.value.status == 503 and "GEMINI_API_KEY" in e.value.message
 
 
+def test_model_ids_primary_then_fallbacks(monkeypatch):
+    monkeypatch.setenv("MODEL_PROVIDER", "gemini")
+    monkeypatch.setenv("MODEL_ID", "a")
+    monkeypatch.setenv("MODEL_FALLBACKS", "b, a ,c")
+    assert agent.model_ids() == ["a", "b", "c"]
+    monkeypatch.setenv("MODEL_PROVIDER", "bedrock")
+    monkeypatch.setenv("MODEL_ID", "nova")
+    assert agent.model_ids() == ["nova"]
+
+
+class FakeAgent:
+    """Stands in for strands.Agent: fails for the models listed in `fail`, answers for the rest."""
+    calls: list[str] = []
+    fail: dict[str, str] = {}
+
+    def __init__(self, model, **kw):
+        self.model_id = model
+
+    def __call__(self, prompt):
+        FakeAgent.calls.append(self.model_id)
+        if self.model_id in FakeAgent.fail:
+            raise RuntimeError(FakeAgent.fail[self.model_id])
+        return '{"answer": "ok", "ruleIds": []}'
+
+
+@pytest.fixture
+def fake_strands(monkeypatch):
+    import sys
+    import types
+
+    mod = types.ModuleType("strands")
+    mod.Agent = FakeAgent
+    monkeypatch.setitem(sys.modules, "strands", mod)
+    monkeypatch.setattr(agent, "_model", lambda model_id=None: model_id)
+    monkeypatch.setenv("MODEL_PROVIDER", "gemini")
+    monkeypatch.setenv("MODEL_ID", "primary")
+    monkeypatch.setenv("MODEL_FALLBACKS", "second,third")
+    FakeAgent.calls, FakeAgent.fail = [], {}
+    return FakeAgent
+
+
+def test_runner_falls_back_on_rate_limit_and_overload(fake_strands):
+    fake_strands.fail = {"primary": "429 RESOURCE_EXHAUSTED quota", "second": "503 UNAVAILABLE high demand"}
+    assert agent.strands_runner("s", "p", []) == '{"answer": "ok", "ruleIds": []}'
+    assert fake_strands.calls == ["primary", "second", "third"]
+
+
+def test_runner_does_not_fall_back_on_other_errors(fake_strands):
+    fake_strands.fail = {"primary": "400 INVALID_ARGUMENT bad request"}
+    with pytest.raises(RuntimeError):
+        agent.strands_runner("s", "p", [])
+    assert fake_strands.calls == ["primary"]
+
+
+def test_runner_raises_last_error_when_every_model_is_busy(fake_strands):
+    fake_strands.fail = {m: "429 quota" for m in ("primary", "second", "third")}
+    with pytest.raises(RuntimeError, match="429"):
+        agent.strands_runner("s", "p", [])
+
+
 def test_chat_route_returns_503_when_the_model_fails(monkeypatch):
     monkeypatch.setattr(agent, "strands_runner", boom)
     monkeypatch.setattr(agent.ToolBox, "strands_tools", lambda self: [])
