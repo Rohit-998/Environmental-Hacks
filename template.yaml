@@ -1,0 +1,230 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: AirDay - daily air-safety plans for school timetables
+
+Parameters:
+  SesSender:
+    Type: String
+    Description: Verified SES sender address (e.g. airday@yourdomain.com)
+  AdminKeyParam:
+    Type: String
+    Default: /airday/admin-key
+    Description: SSM SecureString parameter holding the admin key (create it before deploy)
+  DataGovKeyParam:
+    Type: String
+    Default: /airday/data-gov-key
+  OpenAqKeyParam:
+    Type: String
+    Default: /airday/openaq-key
+  DashboardUrl:
+    Type: String
+    Default: ""
+    Description: Amplify URL of the dashboard, linked from the email
+  CorsOrigins:
+    Type: String
+    Default: "http://localhost:3000"
+    Description: Comma-separated allowed origins (add the Amplify domain)
+  ModelProvider:
+    Type: String
+    Default: bedrock
+    AllowedValues: [bedrock, litellm]
+  ModelId:
+    Type: String
+    Default: apac.amazon.nova-lite-v1:0
+  BedrockRegion:
+    Type: String
+    Default: ap-south-1
+  AlarmEmail:
+    Type: String
+    Default: ""
+    Description: Team email for failure alarms (optional)
+  StationMaxAgeMin:
+    Type: Number
+    Default: 120
+
+Conditions:
+  HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [arm64]
+    MemorySize: 512
+    CodeUri: backend/
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref Table
+        SES_SENDER: !Ref SesSender
+        ADMIN_KEY_PARAM: !Ref AdminKeyParam
+        DATA_GOV_KEY_PARAM: !Ref DataGovKeyParam
+        OPENAQ_KEY_PARAM: !Ref OpenAqKeyParam
+        DASHBOARD_URL: !Ref DashboardUrl
+        STATION_MAX_AGE_MIN: !Ref StationMaxAgeMin
+        AIRDAY_SCHOOL_ID: demo
+
+Resources:
+  Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - {AttributeName: PK, AttributeType: S}
+        - {AttributeName: SK, AttributeType: S}
+      KeySchema:
+        - {AttributeName: PK, KeyType: HASH}
+        - {AttributeName: SK, KeyType: RANGE}
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins: !Split [",", !Ref CorsOrigins]
+        AllowHeaders: [content-type, x-admin-key]
+        AllowMethods: [GET, PUT, POST, OPTIONS]
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 20
+        ThrottlingRateLimit: 10
+      RouteSettings:
+        "POST /chat":
+          ThrottlingBurstLimit: 3
+          ThrottlingRateLimit: 1
+        "POST /note/translate":
+          ThrottlingBurstLimit: 3
+          ThrottlingRateLimit: 1
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/api.handler
+      Timeout: 15
+      Environment:
+        Variables:
+          CORS_ORIGINS: !Ref CorsOrigins
+      Policies:
+        - DynamoDBCrudPolicy: {TableName: !Ref Table}
+        - Statement:
+            - Effect: Allow
+              Action: [ses:SendEmail]
+              Resource: "*"
+            - Effect: Allow
+              Action: [ssm:GetParameters]
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/airday/*"
+      Events:
+        Any:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: ANY
+
+  AgentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/agent.handler
+      Timeout: 25
+      MemorySize: 1024
+      Environment:
+        Variables:
+          MODEL_PROVIDER: !Ref ModelProvider
+          MODEL_ID: !Ref ModelId
+          BEDROCK_REGION: !Ref BedrockRegion
+      Policies:
+        - DynamoDBCrudPolicy: {TableName: !Ref Table}
+        - Statement:
+            - Effect: Allow
+              Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
+              Resource: "*"
+            - Effect: Allow
+              Action: [ssm:GetParameters]
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/airday/*"
+      Events:
+        Chat:
+          Type: HttpApi
+          Properties: {ApiId: !Ref HttpApi, Path: /chat, Method: POST}
+        Translate:
+          Type: HttpApi
+          Properties: {ApiId: !Ref HttpApi, Path: /note/translate, Method: POST}
+
+  BriefFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/brief.handler
+      Timeout: 60
+      Policies:
+        - DynamoDBCrudPolicy: {TableName: !Ref Table}
+        - Statement:
+            - Effect: Allow
+              Action: [ses:SendEmail]
+              Resource: "*"
+            - Effect: Allow
+              Action: [ssm:GetParameters]
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/airday/*"
+
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: scheduler.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: invoke-brief
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt BriefFunction.Arn
+
+  DailySchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Description: AirDay brief at 06:00 IST every day (the Lambda skips non-school days)
+      ScheduleExpression: cron(0 6 * * ? *)
+      ScheduleExpressionTimezone: Asia/Kolkata
+      FlexibleTimeWindow: {Mode: "OFF"}
+      Target:
+        Arn: !GetAtt BriefFunction.Arn
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: "{}"
+        RetryPolicy:
+          MaximumRetryAttempts: 2
+          MaximumEventAgeInSeconds: 3600
+
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Condition: HasAlarmEmail
+    Properties:
+      Subscription:
+        - {Protocol: email, Endpoint: !Ref AlarmEmail}
+
+  BriefErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasAlarmEmail
+    Properties:
+      AlarmDescription: The daily brief Lambda failed
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - {Name: FunctionName, Value: !Ref BriefFunction}
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+
+Outputs:
+  ApiUrl:
+    Description: Base URL for the dashboard (NEXT_PUBLIC_API_URL)
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  TableName:
+    Value: !Ref Table
+  BriefFunctionName:
+    Value: !Ref BriefFunction

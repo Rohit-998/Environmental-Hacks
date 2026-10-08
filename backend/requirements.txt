@@ -1,0 +1,3 @@
+# Lambda runtime dependencies, used by `sam build` (boto3 is provided by the runtime).
+pyyaml==6.0.3
+strands-agents==1.10.0
