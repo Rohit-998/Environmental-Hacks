@@ -19,7 +19,7 @@ from airday import sources  # noqa: E402
 
 # Rohini, Delhi (demo school locality).
 LAT, LON = 28.7383, 77.0822
-OUT = os.path.join(os.path.dirname(__file__), "..", "..", "fixtures", "replay")
+OUT = os.path.join(os.path.dirname(__file__), "..", "fixtures", "replay")
 
 
 def main(date: str) -> None:

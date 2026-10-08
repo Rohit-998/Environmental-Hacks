@@ -24,7 +24,7 @@ from .validator import assert_valid
 log = logging.getLogger("airday")
 
 FIXTURES = os.environ.get(
-    "AIRDAY_FIXTURES", os.path.join(os.path.dirname(__file__), "..", "..", "fixtures", "replay")
+    "AIRDAY_FIXTURES", os.path.join(os.path.dirname(__file__), "..", "fixtures", "replay")
 )
 STATION_MAX_AGE_MIN = int(os.environ.get("STATION_MAX_AGE_MIN", "120"))
 CACHE_TTL_S = int(os.environ.get("CACHE_TTL_S", "600"))

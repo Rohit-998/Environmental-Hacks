@@ -3,7 +3,7 @@ import os
 
 from airday import sources
 
-FIX = os.path.join(os.path.dirname(__file__), "..", "..", "fixtures", "replay", "2025-11-19.json")
+FIX = os.path.join(os.path.dirname(__file__), "..", "fixtures", "replay", "2025-11-19.json")
 
 
 def test_parse_open_meteo_fixture_groups_by_ist_date():
