@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# SAM
+.aws-sam/
+samconfig.toml
+
+# Local env and secrets
+.env
+.env.*
+!.env.example
+
+# Review tooling
+.arena/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
