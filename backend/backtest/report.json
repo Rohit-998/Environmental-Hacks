@@ -1,0 +1,287 @@
+{
+ "period": {
+  "start": "2025-10-01",
+  "end": "2025-12-31"
+ },
+ "stations": [
+  "Anand Vihar, New Delhi - DPCC",
+  "DTU, New Delhi - CPCB",
+  "Jahangirpuri, Delhi - DPCC",
+  "Lodhi Road, New Delhi - IMD",
+  "Mundka, Delhi - DPCC",
+  "North Campus, DU, Delhi - IMD",
+  "Punjabi Bagh, Delhi - DPCC",
+  "Sirifort, Delhi - CPCB",
+  "Wazirpur, Delhi - DPCC"
+ ],
+ "stationDaysScored": 708,
+ "lagHours": 1,
+ "strategies": [
+  {
+   "name": "email",
+   "hours": 4447,
+   "unknownHours": 0,
+   "exactBand": 0.181,
+   "withinOneBand": 0.554,
+   "underPredicted": 0.79,
+   "overPredicted": 0.029,
+   "poorOrWorse": {
+    "n": 4447,
+    "hit": 1885,
+    "miss": 1732,
+    "falseAlarm": 45,
+    "correctNeg": 785,
+    "pod": 0.521,
+    "far": 0.023,
+    "csi": 0.515,
+    "observedRate": 0.813
+   },
+   "veryPoorOrWorse": {
+    "n": 4447,
+    "hit": 949,
+    "miss": 2207,
+    "falseAlarm": 41,
+    "correctNeg": 1250,
+    "pod": 0.301,
+    "far": 0.041,
+    "csi": 0.297,
+    "observedRate": 0.71
+   }
+  },
+  {
+   "name": "email_floor",
+   "hours": 4447,
+   "unknownHours": 0,
+   "exactBand": 0.588,
+   "withinOneBand": 0.927,
+   "underPredicted": 0.15,
+   "overPredicted": 0.262,
+   "poorOrWorse": {
+    "n": 4447,
+    "hit": 3429,
+    "miss": 188,
+    "falseAlarm": 203,
+    "correctNeg": 627,
+    "pod": 0.948,
+    "far": 0.056,
+    "csi": 0.898,
+    "observedRate": 0.813
+   },
+   "veryPoorOrWorse": {
+    "n": 4447,
+    "hit": 2929,
+    "miss": 227,
+    "falseAlarm": 382,
+    "correctNeg": 909,
+    "pod": 0.928,
+    "far": 0.115,
+    "csi": 0.828,
+    "observedRate": 0.71
+   }
+  },
+  {
+   "name": "email_ratio",
+   "hours": 4447,
+   "unknownHours": 0,
+   "exactBand": 0.546,
+   "withinOneBand": 0.917,
+   "underPredicted": 0.274,
+   "overPredicted": 0.18,
+   "poorOrWorse": {
+    "n": 4447,
+    "hit": 3274,
+    "miss": 343,
+    "falseAlarm": 131,
+    "correctNeg": 699,
+    "pod": 0.905,
+    "far": 0.038,
+    "csi": 0.874,
+    "observedRate": 0.813
+   },
+   "veryPoorOrWorse": {
+    "n": 4447,
+    "hit": 2714,
+    "miss": 442,
+    "falseAlarm": 252,
+    "correctNeg": 1039,
+    "pod": 0.86,
+    "far": 0.085,
+    "csi": 0.796,
+    "observedRate": 0.71
+   }
+  },
+  {
+   "name": "live",
+   "hours": 4447,
+   "unknownHours": 0,
+   "exactBand": 0.656,
+   "withinOneBand": 0.952,
+   "underPredicted": 0.125,
+   "overPredicted": 0.219,
+   "poorOrWorse": {
+    "n": 4447,
+    "hit": 3464,
+    "miss": 153,
+    "falseAlarm": 204,
+    "correctNeg": 626,
+    "pod": 0.958,
+    "far": 0.056,
+    "csi": 0.907,
+    "observedRate": 0.813
+   },
+   "veryPoorOrWorse": {
+    "n": 4447,
+    "hit": 2973,
+    "miss": 183,
+    "falseAlarm": 297,
+    "correctNeg": 994,
+    "pod": 0.942,
+    "far": 0.091,
+    "csi": 0.861,
+    "observedRate": 0.71
+   }
+  },
+  {
+   "name": "persistence",
+   "hours": 4274,
+   "unknownHours": 173,
+   "exactBand": 0.613,
+   "withinOneBand": 0.948,
+   "underPredicted": 0.135,
+   "overPredicted": 0.252,
+   "poorOrWorse": {
+    "n": 4274,
+    "hit": 3334,
+    "miss": 122,
+    "falseAlarm": 182,
+    "correctNeg": 636,
+    "pod": 0.965,
+    "far": 0.052,
+    "csi": 0.916,
+    "observedRate": 0.809
+   },
+   "veryPoorOrWorse": {
+    "n": 4274,
+    "hit": 2888,
+    "miss": 129,
+    "falseAlarm": 345,
+    "correctNeg": 912,
+    "pod": 0.957,
+    "far": 0.107,
+    "csi": 0.859,
+    "observedRate": 0.706
+   }
+  }
+ ],
+ "byMonth": {
+  "2025-10": {
+   "name": "email",
+   "hours": 1564,
+   "unknownHours": 0,
+   "exactBand": 0.258,
+   "withinOneBand": 0.637,
+   "underPredicted": 0.683,
+   "overPredicted": 0.059,
+   "poorOrWorse": {
+    "n": 1564,
+    "hit": 221,
+    "miss": 610,
+    "falseAlarm": 32,
+    "correctNeg": 701,
+    "pod": 0.266,
+    "far": 0.126,
+    "csi": 0.256,
+    "observedRate": 0.531
+   },
+   "veryPoorOrWorse": {
+    "n": 1564,
+    "hit": 51,
+    "miss": 543,
+    "falseAlarm": 19,
+    "correctNeg": 951,
+    "pod": 0.086,
+    "far": 0.271,
+    "csi": 0.083,
+    "observedRate": 0.38
+   }
+  },
+  "2025-11": {
+   "name": "email",
+   "hours": 1368,
+   "unknownHours": 0,
+   "exactBand": 0.071,
+   "withinOneBand": 0.401,
+   "underPredicted": 0.92,
+   "overPredicted": 0.01,
+   "poorOrWorse": {
+    "n": 1368,
+    "hit": 723,
+    "miss": 597,
+    "falseAlarm": 10,
+    "correctNeg": 38,
+    "pod": 0.548,
+    "far": 0.014,
+    "csi": 0.544,
+    "observedRate": 0.965
+   },
+   "veryPoorOrWorse": {
+    "n": 1368,
+    "hit": 327,
+    "miss": 912,
+    "falseAlarm": 6,
+    "correctNeg": 123,
+    "pod": 0.264,
+    "far": 0.018,
+    "csi": 0.263,
+    "observedRate": 0.906
+   }
+  },
+  "2025-12": {
+   "name": "email",
+   "hours": 1515,
+   "unknownHours": 0,
+   "exactBand": 0.203,
+   "withinOneBand": 0.605,
+   "underPredicted": 0.783,
+   "overPredicted": 0.014,
+   "poorOrWorse": {
+    "n": 1515,
+    "hit": 941,
+    "miss": 525,
+    "falseAlarm": 3,
+    "correctNeg": 46,
+    "pod": 0.642,
+    "far": 0.003,
+    "csi": 0.641,
+    "observedRate": 0.968
+   },
+   "veryPoorOrWorse": {
+    "n": 1515,
+    "hit": 571,
+    "miss": 752,
+    "falseAlarm": 16,
+    "correctNeg": 176,
+    "pod": 0.432,
+    "far": 0.027,
+    "csi": 0.426,
+    "observedRate": 0.873
+   }
+  }
+ },
+ "pm25": {
+  "hours": 4366,
+  "meanBias": -102.6,
+  "mae": 106.0
+ },
+ "morningPeDays": {
+  "n": 674,
+  "hit": 256,
+  "miss": 282,
+  "falseAlarm": 5,
+  "correctNeg": 131,
+  "pod": 0.476,
+  "far": 0.019,
+  "csi": 0.471,
+  "observedRate": 0.798
+ }
+}
