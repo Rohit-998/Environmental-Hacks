@@ -55,7 +55,9 @@ Globals:
     Runtime: python3.12
     Architectures: [x86_64]
     MemorySize: 512
-    CodeUri: backend/
+    # Prebuilt by backend/scripts/build_lambda.sh (Linux wheels, works on any host without Docker).
+    CodeUri: backend/.build/app
+    Layers: [!Ref DepsLayer]
     Tracing: Active
     LoggingConfig:
       LogFormat: JSON
@@ -75,6 +77,17 @@ Globals:
         POWERTOOLS_LOG_LEVEL: INFO
 
 Resources:
+  # ------------------------------------------------------------ code
+
+  DepsLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      Description: AirDay Python dependencies (locked in backend/uv.lock)
+      ContentUri: backend/.build/deps
+      CompatibleRuntimes: [python3.12]
+      CompatibleArchitectures: [x86_64]
+      RetentionPolicy: Delete
+
   # ------------------------------------------------------------ data
 
   Table:
@@ -256,7 +269,6 @@ Resources:
     Properties:
       Handler: handlers/worker.handler
       Timeout: 60
-      ReservedConcurrentExecutions: 20  # caps load on upstream APIs and SES
       Policies:
         - DynamoDBCrudPolicy: {TableName: !Ref Table}
         - Statement:
@@ -274,6 +286,10 @@ Resources:
             BatchSize: 10
             MaximumBatchingWindowInSeconds: 5
             FunctionResponseTypes: [ReportBatchItemFailures]
+            # Caps parallel workers (load on SES and upstream APIs) without reserving account concurrency,
+            # which new accounts can't spare (default limit 10). Raise with a quota increase.
+            ScalingConfig:
+              MaximumConcurrency: 5
 
   SchedulerRole:
     Type: AWS::IAM::Role

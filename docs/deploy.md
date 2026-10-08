@@ -33,11 +33,16 @@ aws bedrock-runtime converse --model-id apac.amazon.nova-lite-v1:0 --messages '[
 
 ## 4. First deploy (from a laptop)
 
-Needs the SAM CLI and Python 3.12.
+Needs the SAM CLI and uv. No Docker: the build script installs Linux wheels for Python 3.12 into
+`backend/.build/`, which the template uploads directly (code as the function, dependencies as a layer).
+Don't run `sam build`; on Windows it resolves packages for the host and pulls in `pywin32`.
 
 ```bash
-sam build
-sam deploy --guided --stack-name airday-prod --capabilities CAPABILITY_IAM
+bash backend/scripts/build_lambda.sh
+```
+
+```bash
+sam deploy --guided --template-file template.yaml --stack-name airday-prod --capabilities CAPABILITY_IAM
 ```
 
 Note the outputs: `ApiUrl`, `UserPoolId`, `UserPoolClientId`.

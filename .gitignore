@@ -28,3 +28,6 @@ samconfig.toml
 Thumbs.db
 .vscode/
 .idea/
+
+# Lambda bundle (scripts/build_lambda.sh)
+.build/

@@ -66,9 +66,7 @@ jobs:
         run: uvx --from cfn-lint==1.40.3 cfn-lint template.yaml
       - name: Lambda requirements match the lockfile
         working-directory: backend
-        run: |
-          uv export --frozen --no-dev --no-hashes --no-emit-project --extra agent -o /tmp/req.txt
-          diff <(grep -v '^#' requirements.txt) <(grep -v '^#' /tmp/req.txt)
+        run: bash scripts/export_requirements.sh --check
 
   deploy:
     name: Deploy to AWS
@@ -90,13 +88,11 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ap-south-1
-      - uses: actions/setup-python@v7.0.0
-        with:
-          python-version: "3.12"
-      - run: sam build
+      - name: Build Lambda bundle (Linux wheels from uv.lock)
+        run: bash backend/scripts/build_lambda.sh
       - name: sam deploy
         run: >
-          sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+          sam deploy --template-file template.yaml --no-confirm-changeset --no-fail-on-empty-changeset
           --stack-name airday-prod --resolve-s3 --capabilities CAPABILITY_IAM
           --parameter-overrides
           Stage=prod
