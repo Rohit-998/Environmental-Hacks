@@ -1,29 +1,30 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: AirDay - daily air-safety plans for school timetables
+Description: >-
+  AirDay - daily air-safety plans for school timetables. Multi-tenant serverless:
+  Scheduler -> planner -> SQS -> workers, HTTP API with Cognito JWT auth, DynamoDB single table.
 
 Parameters:
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, prod]
   SesSender:
     Type: String
     Description: Verified SES sender address (e.g. airday@yourdomain.com)
-  AdminKeyParam:
-    Type: String
-    Default: /airday/admin-key
-    Description: SSM SecureString parameter holding the admin key (create it before deploy)
-  DataGovKeyParam:
-    Type: String
-    Default: /airday/data-gov-key
-  OpenAqKeyParam:
-    Type: String
-    Default: /airday/openaq-key
   DashboardUrl:
     Type: String
     Default: ""
-    Description: Amplify URL of the dashboard, linked from the email
+    Description: Amplify URL of the dashboard, linked from emails and used as the Cognito callback
   CorsOrigins:
     Type: String
     Default: "http://localhost:3000"
     Description: Comma-separated allowed origins (add the Amplify domain)
+  DemoAdmin:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Allow writes to the public demo school with the admin key. Turn off outside the hackathon.
   ModelProvider:
     Type: String
     Default: bedrock
@@ -37,10 +38,14 @@ Parameters:
   AlarmEmail:
     Type: String
     Default: ""
-    Description: Team email for failure alarms (optional)
+    Description: Team email for alarms (optional)
   StationMaxAgeMin:
     Type: Number
     Default: 120
+  StationFloorHours:
+    Type: Number
+    Default: 24
+    Description: Hours the latest station band floors the forecast (chosen by backtest/report.md)
 
 Conditions:
   HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
@@ -51,20 +56,31 @@ Globals:
     Architectures: [arm64]
     MemorySize: 512
     CodeUri: backend/
+    Tracing: Active
+    LoggingConfig:
+      LogFormat: JSON
     Environment:
       Variables:
         TABLE_NAME: !Ref Table
         SES_SENDER: !Ref SesSender
-        ADMIN_KEY_PARAM: !Ref AdminKeyParam
-        DATA_GOV_KEY_PARAM: !Ref DataGovKeyParam
-        OPENAQ_KEY_PARAM: !Ref OpenAqKeyParam
+        ADMIN_KEY_PARAM: !Sub /airday/${Stage}/admin-key
+        DATA_GOV_KEY_PARAM: !Sub /airday/${Stage}/data-gov-key
+        OPENAQ_KEY_PARAM: !Sub /airday/${Stage}/openaq-key
         DASHBOARD_URL: !Ref DashboardUrl
+        DEMO_ADMIN: !Ref DemoAdmin
         STATION_MAX_AGE_MIN: !Ref StationMaxAgeMin
-        AIRDAY_SCHOOL_ID: demo
+        STATION_FLOOR_HOURS: !Ref StationFloorHours
+        POWERTOOLS_SERVICE_NAME: airday
+        POWERTOOLS_METRICS_NAMESPACE: AirDay
+        POWERTOOLS_LOG_LEVEL: INFO
 
 Resources:
+  # ------------------------------------------------------------ data
+
   Table:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
@@ -76,33 +92,77 @@ Resources:
       TimeToLiveSpecification:
         AttributeName: expiresAt
         Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  # ------------------------------------------------------------ auth
+
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub airday-${Stage}
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      Policies:
+        PasswordPolicy: {MinimumLength: 10, RequireLowercase: true, RequireNumbers: true, RequireUppercase: false, RequireSymbols: false}
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - {Name: verified_email, Priority: 1}
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: dashboard
+      GenerateSecret: false
+      ExplicitAuthFlows: [ALLOW_USER_SRP_AUTH, ALLOW_REFRESH_TOKEN_AUTH]
+      PreventUserExistenceErrors: ENABLED
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      RefreshTokenValidity: 30
+      TokenValidityUnits: {AccessToken: hours, IdToken: hours, RefreshToken: days}
+
+  # ------------------------------------------------------------ API
 
   HttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
+      StageName: $default
       CorsConfiguration:
         AllowOrigins: !Split [",", !Ref CorsOrigins]
-        AllowHeaders: [content-type, x-admin-key]
+        AllowHeaders: [content-type, x-admin-key, authorization]
         AllowMethods: [GET, PUT, POST, OPTIONS]
+      Auth:
+        Authorizers:
+          Cognito:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
+              audience: [!Ref UserPoolClient]
       DefaultRouteSettings:
-        ThrottlingBurstLimit: 20
-        ThrottlingRateLimit: 10
+        ThrottlingBurstLimit: 50
+        ThrottlingRateLimit: 25
       RouteSettings:
-        "POST /chat":
-          ThrottlingBurstLimit: 3
-          ThrottlingRateLimit: 1
-        "POST /note/translate":
-          ThrottlingBurstLimit: 3
-          ThrottlingRateLimit: 1
+        "POST /chat": {ThrottlingBurstLimit: 3, ThrottlingRateLimit: 1}
+        "POST /note/translate": {ThrottlingBurstLimit: 3, ThrottlingRateLimit: 1}
+        "POST /me/chat": {ThrottlingBurstLimit: 5, ThrottlingRateLimit: 2}
+        "POST /me/note/translate": {ThrottlingBurstLimit: 5, ThrottlingRateLimit: 2}
+      AccessLogSettings:
+        DestinationArn: !GetAtt ApiAccessLogs.Arn
+        Format: '{"requestId":"$context.requestId","route":"$context.routeKey","status":"$context.status","latencyMs":"$context.responseLatency","sub":"$context.authorizer.claims.sub"}'
+
+  ApiAccessLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 30
 
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
       Handler: handlers/api.handler
       Timeout: 15
-      Environment:
-        Variables:
-          CORS_ORIGINS: !Ref CorsOrigins
       Policies:
         - DynamoDBCrudPolicy: {TableName: !Ref Table}
         - Statement:
@@ -111,14 +171,17 @@ Resources:
               Resource: "*"
             - Effect: Allow
               Action: [ssm:GetParameters]
-              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/airday/*"
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/airday/${Stage}/*"
       Events:
-        Any:
+        Public:
           Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /{proxy+}
-            Method: ANY
+          Properties: {ApiId: !Ref HttpApi, Path: "/{proxy+}", Method: ANY}
+        Me:
+          Type: HttpApi
+          Properties: {ApiId: !Ref HttpApi, Path: /me, Method: GET, Auth: {Authorizer: Cognito}}
+        MeAny:
+          Type: HttpApi
+          Properties: {ApiId: !Ref HttpApi, Path: "/me/{proxy+}", Method: ANY, Auth: {Authorizer: Cognito}}
 
   AgentFunction:
     Type: AWS::Serverless::Function
@@ -139,7 +202,7 @@ Resources:
               Resource: "*"
             - Effect: Allow
               Action: [ssm:GetParameters]
-              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/airday/*"
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/airday/${Stage}/*"
       Events:
         Chat:
           Type: HttpApi
@@ -147,12 +210,53 @@ Resources:
         Translate:
           Type: HttpApi
           Properties: {ApiId: !Ref HttpApi, Path: /note/translate, Method: POST}
+        MeChat:
+          Type: HttpApi
+          Properties: {ApiId: !Ref HttpApi, Path: /me/chat, Method: POST, Auth: {Authorizer: Cognito}}
+        MeTranslate:
+          Type: HttpApi
+          Properties: {ApiId: !Ref HttpApi, Path: /me/note/translate, Method: POST, Auth: {Authorizer: Cognito}}
 
-  BriefFunction:
+  # ------------------------------------------------------------ daily fan-out
+
+  JobsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  JobsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 360  # 6x the worker timeout
+      MessageRetentionPeriod: 7200  # a brief older than 2 h is useless
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt JobsDLQ.Arn
+        maxReceiveCount: 3
+
+  PlannerFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: handlers/brief.handler
+      Handler: handlers/planner.handler
+      Timeout: 120
+      Environment:
+        Variables:
+          JOBS_QUEUE_URL: !Ref JobsQueue
+      Policies:
+        - DynamoDBCrudPolicy: {TableName: !Ref Table}
+        - SQSSendMessagePolicy: {QueueName: !GetAtt JobsQueue.QueueName}
+        - Statement:
+            - Effect: Allow
+              Action: [ssm:GetParameters]
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/airday/${Stage}/*"
+
+  WorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/worker.handler
       Timeout: 60
+      ReservedConcurrentExecutions: 20  # caps load on upstream APIs and SES
       Policies:
         - DynamoDBCrudPolicy: {TableName: !Ref Table}
         - Statement:
@@ -161,7 +265,15 @@ Resources:
               Resource: "*"
             - Effect: Allow
               Action: [ssm:GetParameters]
-              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/airday/*"
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/airday/${Stage}/*"
+      Events:
+        Jobs:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt JobsQueue.Arn
+            BatchSize: 10
+            MaximumBatchingWindowInSeconds: 5
+            FunctionResponseTypes: [ReportBatchItemFailures]
 
   SchedulerRole:
     Type: AWS::IAM::Role
@@ -173,45 +285,63 @@ Resources:
             Principal: {Service: scheduler.amazonaws.com}
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: invoke-brief
+        - PolicyName: invoke-planner
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action: lambda:InvokeFunction
-                Resource: !GetAtt BriefFunction.Arn
+                Resource: !GetAtt PlannerFunction.Arn
 
   DailySchedule:
     Type: AWS::Scheduler::Schedule
     Properties:
-      Description: AirDay brief at 06:00 IST every day (the Lambda skips non-school days)
+      Description: AirDay planner at 06:00 IST every day (workers skip non-school days per school)
       ScheduleExpression: cron(0 6 * * ? *)
       ScheduleExpressionTimezone: Asia/Kolkata
       FlexibleTimeWindow: {Mode: "OFF"}
       Target:
-        Arn: !GetAtt BriefFunction.Arn
+        Arn: !GetAtt PlannerFunction.Arn
         RoleArn: !GetAtt SchedulerRole.Arn
         Input: "{}"
         RetryPolicy:
           MaximumRetryAttempts: 2
-          MaximumEventAgeInSeconds: 3600
+          MaximumEventAgeInSeconds: 1800
+
+  # ------------------------------------------------------------ operations
 
   AlarmTopic:
     Type: AWS::SNS::Topic
     Condition: HasAlarmEmail
     Properties:
+      KmsMasterKeyId: alias/aws/sns
       Subscription:
         - {Protocol: email, Endpoint: !Ref AlarmEmail}
 
-  BriefErrorsAlarm:
+  DLQNotEmptyAlarm:
     Type: AWS::CloudWatch::Alarm
     Condition: HasAlarmEmail
     Properties:
-      AlarmDescription: The daily brief Lambda failed
+      AlarmDescription: A school's daily brief failed 3 times and is in the DLQ
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions: [{Name: QueueName, Value: !GetAtt JobsDLQ.QueueName}]
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+
+  PlannerErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasAlarmEmail
+    Properties:
+      AlarmDescription: The 06:00 planner failed
       Namespace: AWS/Lambda
       MetricName: Errors
-      Dimensions:
-        - {Name: FunctionName, Value: !Ref BriefFunction}
+      Dimensions: [{Name: FunctionName, Value: !Ref PlannerFunction}]
       Statistic: Sum
       Period: 300
       EvaluationPeriods: 1
@@ -220,11 +350,66 @@ Resources:
       TreatMissingData: notBreaching
       AlarmActions: [!Ref AlarmTopic]
 
+  NoBriefsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasAlarmEmail
+    Properties:
+      AlarmDescription: No briefs were built between 06:00 and 07:00 IST on a weekday
+      Namespace: AirDay
+      MetricName: BriefBuilt
+      Dimensions: [{Name: service, Value: airday}]
+      Statistic: Sum
+      Period: 3600
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+
+  Dashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub airday-${Stage}
+      DashboardBody: !Sub |
+        {"widgets":[
+          {"type":"metric","width":12,"height":6,"properties":{"title":"Daily run","region":"${AWS::Region}","stat":"Sum","period":3600,
+            "metrics":[["AirDay","SchoolsQueued","service","airday"],[".","BriefBuilt",".","."],[".","EmailSent",".","."],[".","BriefFailed",".","."],[".","BriefSkipped",".","."]]}},
+          {"type":"metric","width":12,"height":6,"properties":{"title":"Decisions","region":"${AWS::Region}","stat":"Sum","period":3600,
+            "metrics":[["AirDay","ChangesRecommended","service","airday"],[".","StationEscalations",".","."],[".","ForecastCellsWarmed",".","."]]}},
+          {"type":"metric","width":12,"height":6,"properties":{"title":"Queue","region":"${AWS::Region}","stat":"Maximum","period":300,
+            "metrics":[["AWS/SQS","ApproximateNumberOfMessagesVisible","QueueName","${JobsQueue.QueueName}"],["...","${JobsDLQ.QueueName}"]]}},
+          {"type":"metric","width":12,"height":6,"properties":{"title":"API","region":"${AWS::Region}","stat":"Sum","period":300,
+            "metrics":[["AirDay","Http2xx","service","airday"],[".","Http4xx",".","."],[".","Http5xx",".","."]]}},
+          {"type":"log","width":24,"height":6,"properties":{"title":"Latest daily briefs","region":"${AWS::Region}",
+            "query":"SOURCE '/aws/lambda/${WorkerFunction}' | fields @timestamp, message | filter message like /daily_brief/ | sort @timestamp desc | limit 20"}}
+        ]}
+
+  Budget:
+    Type: AWS::Budgets::Budget
+    Condition: HasAlarmEmail
+    Properties:
+      Budget:
+        BudgetName: !Sub airday-${Stage}
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit: {Amount: 5, Unit: USD}
+      NotificationsWithSubscribers:
+        - Notification: {NotificationType: ACTUAL, ComparisonOperator: GREATER_THAN, Threshold: 80}
+          Subscribers: [{SubscriptionType: EMAIL, Address: !Ref AlarmEmail}]
+
 Outputs:
   ApiUrl:
-    Description: Base URL for the dashboard (NEXT_PUBLIC_API_URL)
+    Description: NEXT_PUBLIC_API_URL for the dashboard
     Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  UserPoolId:
+    Description: NEXT_PUBLIC_COGNITO_USER_POOL_ID
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Description: NEXT_PUBLIC_COGNITO_CLIENT_ID
+    Value: !Ref UserPoolClient
+  JobsQueueUrl:
+    Value: !Ref JobsQueue
+  DashboardName:
+    Value: !Ref Dashboard
   TableName:
     Value: !Ref Table
-  BriefFunctionName:
-    Value: !Ref BriefFunction
