@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { AccountMenu } from "@/components/AccountMenu";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -28,7 +29,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <Link href="/" className="text-lg font-bold text-brand">
               AirDay
             </Link>
-            <nav aria-label="Main">
+            <nav aria-label="Main" className="flex flex-wrap items-center gap-2">
               <ul className="flex flex-wrap gap-1 text-sm">
                 {NAV.map((n) => (
                   <li key={n.href}>
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                   </li>
                 ))}
               </ul>
+              <AccountMenu />
             </nav>
           </div>
         </header>
