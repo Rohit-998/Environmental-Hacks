@@ -13,12 +13,14 @@ See [PRD.md](PRD.md) for the full spec.
 ```
 backend/     Python 3.12 (uv). Rules engine, API, Lambda handlers, Strands agent, tests
   airday/    engine, rules, validator, sources, store, service, mailer, api, agent, devserver
-  handlers/  Lambda entry points: api.py, brief.py (06:00 schedule), agent.py (chat/translate)
+  handlers/  Lambda entry points: api.py, agent.py, planner.py (06:00), worker.py (SQS)
+  backtest/  scores the engine against measured station data
   rules/     rules.yaml (single source of truth), SOURCES.md (what has been read)
   fixtures/  frozen replay days
 frontend/    Next.js (App Router, TypeScript, static export) for Amplify Hosting
 contracts/   brief.schema.json, the backend/frontend contract
-template.yaml  SAM: DynamoDB, HTTP API, 3 Lambdas, EventBridge Scheduler, alarm
+template.yaml  SAM: DynamoDB, HTTP API + Cognito, SQS fan-out, Scheduler, X-Ray, dashboard, alarms
+docs/        architecture, decision records, deploy guide
 ```
 
 ## Run locally
@@ -36,7 +38,7 @@ cd frontend && npm install && npm run dev
 ```
 
 Open http://localhost:3000. Pick a replay date from the "View" menu to see a Very Poor morning.
-The local admin key is `dev` (enter it on the Setup page).
+The local demo admin key is `dev`. "Sign in" locally uses a stand-in user; each name gets its own school.
 
 Optional local data keys: `DATA_GOV_API_KEY` (official AQI) and `OPENAQ_API_KEY` (station readings).
 Chat and translation need the agent extra (`uv sync --extra agent`) plus AWS credentials with Bedrock access.
@@ -55,22 +57,17 @@ cd backend && RELEASE=1 uv run pytest
 
 ## Deploy
 
-1. Create the secrets (once):
+See [docs/deploy.md](docs/deploy.md): SSM secrets, SES, `sam deploy`, GitHub OIDC for continuous deploy, and
+Amplify Hosting for the dashboard. Architecture, failure modes and decisions are in
+[docs/architecture.md](docs/architecture.md).
 
-   ```bash
-   aws ssm put-parameter --name /airday/admin-key --type SecureString --value "$(openssl rand -hex 32)"
-   ```
+## Backtest
 
-   Optionally `/airday/data-gov-key` and `/airday/openaq-key` the same way.
-2. Verify the SES sender and the principal's address (SES sandbox).
-3. Build and deploy the backend:
+```bash
+cd backend && uv run python -m backtest.run
+```
 
-   ```bash
-   sam build && sam deploy --guided
-   ```
-
-4. Connect the repo in Amplify Hosting (it reads `amplify.yml`), and set `NEXT_PUBLIC_API_URL` to the `ApiUrl` output.
-   Then add the Amplify domain to the `CorsOrigins` parameter and redeploy.
+Scores the engine against 9 Delhi stations, Oct–Dec 2025. Results: [backend/backtest/report.md](backend/backtest/report.md).
 
 ## Data
 
