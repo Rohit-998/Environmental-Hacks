@@ -16,6 +16,7 @@ dev = [
     "pytest==8.4.2",
     "jsonschema==4.25.1",
     "boto3==1.40.49",
+    "moto[dynamodb]==5.2.3",
 ]
 
 [tool.pytest.ini_options]
