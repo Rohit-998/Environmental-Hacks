@@ -55,7 +55,7 @@ class AgentError(Exception):
 
 def _model():
     provider = os.environ.get("MODEL_PROVIDER", "bedrock")
-    model_id = os.environ.get("MODEL_ID", "apac.amazon.nova-lite-v1:0")
+    model_id = os.environ.get("MODEL_ID", "global.amazon.nova-2-lite-v1:0")
     if provider == "bedrock":
         from strands.models import BedrockModel
 
@@ -167,6 +167,11 @@ def chat(store: Store, school_id: str, message: str, history: list[dict], contex
         except ValueError as e:  # a tool rejected an out-of-range date
             return {"answer": OUT_OF_RANGE.format(today=context.isoformat()), "ruleIds": [], "grounded": True,
                     "fixed": True, "detail": str(e)}
+        except AgentError:
+            raise
+        except Exception as e:  # model or provider failure: chat degrades, the morning plan is unaffected
+            log.error("model call failed: %s", e)
+            raise AgentError(503, "Assistant unavailable right now. The daily plan still works.") from None
         out = _parse(raw)
         problems = check_chat(out, box.rule_ids, box.evaluated) if out is not None else ["output is not JSON"]
         if not problems:
@@ -187,7 +192,11 @@ def translate(store: Store, school_id: str, text: str, runner: Runner | None = N
     if len(text) > 300:
         raise AgentError(400, "text is over 300 characters")
     _check_cap(store, school_id)
-    hi = (runner or strands_runner)(TRANSLATE_SYSTEM, text, []).strip()
+    try:
+        hi = (runner or strands_runner)(TRANSLATE_SYSTEM, text, []).strip()
+    except Exception as e:
+        log.error("model call failed: %s", e)
+        raise AgentError(503, "Translation unavailable right now. The line stays in English.") from None
     problems = check_translation(text, hi)
     return {"en": text, "hi": hi if not problems else None, "hiValidated": not problems, "problems": problems}
 
