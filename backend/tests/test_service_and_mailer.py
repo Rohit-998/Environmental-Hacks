@@ -17,7 +17,7 @@ HERO = dt.date(2025, 11, 19)  # Wednesday, Very Poor morning in the frozen fixtu
 
 def test_replay_brief_is_valid_and_labelled():
     s = MemoryStore()
-    b = service.build_brief(s, HERO, mode="replay")
+    b = service.build_brief(s, "demo", HERO, mode="replay")
     jsonschema.validate(b, SCHEMA)
     assert b["mode"] == "replay" and b["subject"].startswith("REPLAY · ")
     assert b["generatedAt"].startswith("2025-11-19T06:00")
@@ -28,10 +28,10 @@ def test_replay_brief_is_valid_and_labelled():
 
 def test_replay_and_live_keys_are_separate():
     s = MemoryStore()
-    b = service.build_brief(s, HERO, mode="replay")
-    service.store_brief(s, b)
-    assert service.get_stored(s, HERO.isoformat(), "replay") is not None
-    assert service.get_stored(s, HERO.isoformat(), "live") is None
+    b = service.build_brief(s, "demo", HERO, mode="replay")
+    service.store_brief(s, "demo", b)
+    assert service.get_stored(s, "demo", HERO.isoformat(), "replay") is not None
+    assert service.get_stored(s, "demo", HERO.isoformat(), "live") is None
 
 
 def test_replay_dates_and_fixture_coverage():
@@ -42,7 +42,7 @@ def test_replay_dates_and_fixture_coverage():
 
 
 def test_evaluate_in_replay_returns_a_rule():
-    r = service.evaluate(MemoryStore(), "pe", dt.date(2025, 11, 20), "14:00", "16:00", mode="replay")
+    r = service.evaluate(MemoryStore(), "demo", "pe", dt.date(2025, 11, 20), "14:00", "16:00", mode="replay")
     assert r["ruleId"].startswith("R-") and r["ruleId"].endswith("-PE")
 
 
@@ -59,7 +59,7 @@ def test_live_brief_with_no_forecast_says_unavailable(monkeypatch):
         raise service.sources.UpstreamError("down")
 
     monkeypatch.setattr(service.sources, "fetch_open_meteo", boom)
-    b = service.build_brief(MemoryStore(), dt.date(2026, 10, 9), mode="live",
+    b = service.build_brief(MemoryStore(), "demo", dt.date(2026, 10, 9), mode="live",
                             now=dt.datetime(2026, 10, 9, 6, 0, tzinfo=IST))
     assert b["upstream"]["forecast"] == "unavailable"
     assert "Forecast unavailable" in b["headline"]
@@ -68,7 +68,7 @@ def test_live_brief_with_no_forecast_says_unavailable(monkeypatch):
 
 def test_diff_reports_changed_actions():
     s = MemoryStore()
-    old = service.build_brief(s, HERO, mode="replay")
+    old = service.build_brief(s, "demo", HERO, mode="replay")
     new = json.loads(json.dumps(old))
     new["actions"][0]["ruleIds"] = ["R-SV-ASM"]
     d = service.diff(old, new)
@@ -89,23 +89,23 @@ class FakeSES:
 
 
 def _brief():
-    return service.build_brief(MemoryStore(), HERO, mode="replay") | {"mode": "live"}
+    return service.build_brief(MemoryStore(), "demo", HERO, mode="replay") | {"mode": "live"}
 
 
 def test_duplicate_invocation_sends_one_email():
     s, ses, b = MemoryStore(), FakeSES(), _brief()
-    assert mailer.send_daily(s, b, "p@example.com", ses)["sent"]
-    assert not mailer.send_daily(s, b, "p@example.com", ses)["sent"]
+    assert mailer.send_daily(s, "demo", b, "p@example.com", ses)["sent"]
+    assert not mailer.send_daily(s, "demo", b, "p@example.com", ses)["sent"]
     assert len(ses.calls) == 1
 
 
 def test_failed_send_is_retried_then_sent():
     s, ses, b = MemoryStore(), FakeSES(fail_times=1), _brief()
     with pytest.raises(RuntimeError):
-        mailer.send_daily(s, b, "p@example.com", ses)
-    r = mailer.send_daily(s, b, "p@example.com", ses)
+        mailer.send_daily(s, "demo", b, "p@example.com", ses)
+    r = mailer.send_daily(s, "demo", b, "p@example.com", ses)
     assert r["sent"] and r["attempts"] == 2
-    assert not mailer.send_daily(s, b, "p@example.com", ses)["sent"]
+    assert not mailer.send_daily(s, "demo", b, "p@example.com", ses)["sent"]
 
 
 def test_email_body_has_changes_first_plain_text_and_attribution():

@@ -30,7 +30,7 @@ EVAL = ("evaluate_activity", {"type": "pe", "date": "2025-11-20", "start": "14:0
 
 
 def ask(script, message="Can we hold sports day tomorrow afternoon?", store=None):
-    return agent.chat(store or MemoryStore(), message, [], CTX, "replay",
+    return agent.chat(store or MemoryStore(), "demo", message, [], CTX, "replay",
                       runner=fake(script), tools_factory=tools_by_name)
 
 
@@ -42,7 +42,7 @@ def test_grounded_answer_passes():
         box_rule.append(r["ruleId"])
         return json.dumps({"answer": "Yes.", "ruleIds": [r["ruleId"]]})
 
-    out = agent.chat(MemoryStore(), "sports day tomorrow?", [], CTX, "replay", runner=run, tools_factory=tools_by_name)
+    out = agent.chat(MemoryStore(), "demo", "sports day tomorrow?", [], CTX, "replay", runner=run, tools_factory=tools_by_name)
     assert out["grounded"] and out["ruleIds"] == box_rule
 
 
@@ -83,9 +83,9 @@ def test_tool_call_cap():
 
 
 def test_translate_validates_output():
-    good = agent.translate(MemoryStore(), "Rehearsal on Monday at 09:30.",
+    good = agent.translate(MemoryStore(), "demo", "Rehearsal on Monday at 09:30.",
                            runner=lambda s, p, t: "अभ्यास सोमवार को ०९:३० बजे होगा।")
     assert good["hiValidated"] and good["hi"]
-    bad = agent.translate(MemoryStore(), "Rehearsal on Monday at 09:30.",
+    bad = agent.translate(MemoryStore(), "demo", "Rehearsal on Monday at 09:30.",
                           runner=lambda s, p, t: "अभ्यास सोमवार को होगा।")
     assert not bad["hiValidated"] and bad["hi"] is None

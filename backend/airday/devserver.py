@@ -35,7 +35,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Access-Control-Allow-Origin", ALLOWED_ORIGIN)
-        self.send_header("Access-Control-Allow-Headers", "content-type, x-admin-key")
+        self.send_header("Access-Control-Allow-Headers", "content-type, x-admin-key, x-dev-user, authorization")
         self.send_header("Access-Control-Allow-Methods", "GET, PUT, POST, OPTIONS")
         self.end_headers()
         self.wfile.write(data)
@@ -43,12 +43,18 @@ class Handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):  # noqa: N802
         self._send(204, {})
 
+    def _claims(self) -> dict | None:
+        """Local stand-in for the Cognito JWT authorizer: `x-dev-user: <sub>` acts as a signed-in user.
+        Dev server only; the deployed API verifies real tokens at API Gateway."""
+        sub = self.headers.get("x-dev-user")
+        return {"sub": sub} if sub else None
+
     def _handle(self, method: str) -> None:
         url = urllib.parse.urlparse(self.path)
         query = {k: v[0] for k, v in urllib.parse.parse_qs(url.query).items()}
         length = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(length).decode("utf-8") if length else None
-        status, out = api.route(method, url.path, query, body, dict(self.headers), STORE, EXTRA_ROUTES)
+        status, out = api.route(method, url.path, query, body, dict(self.headers), STORE, EXTRA_ROUTES, claims=self._claims())
         self._send(status, out)
 
     def do_GET(self):  # noqa: N802
