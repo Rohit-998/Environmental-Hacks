@@ -40,8 +40,28 @@ cd frontend && npm install && npm run dev
 Open http://localhost:3000. Pick a replay date from the "View" menu to see a Very Poor morning.
 The local demo admin key is `dev`. "Sign in" locally uses a stand-in user; each name gets its own school.
 
-Optional local data keys: `DATA_GOV_API_KEY` (official AQI) and `OPENAQ_API_KEY` (station readings).
-Chat and translation need the agent extra (`uv sync --extra agent`) plus AWS credentials with Bedrock access.
+Settings and secrets live in `backend/.env` (copy `backend/.env.example`; gitignored). Optional data keys:
+`DATA_GOV_API_KEY` (official AQI) and `OPENAQ_API_KEY` (station readings). Chat and translation need the agent
+extra (`uv sync --extra agent`) and `GEMINI_API_KEY`; `uv run python scripts/chat_smoke.py` tests them.
+
+## Why Gemini, not Bedrock
+
+The chat assistant and the Hindi translation run on **Google Gemini** (`gemini-3.5-flash`) through the
+[Strands Agents SDK](https://strandsagents.com) (AWS open source). We use Gemini **only because Amazon Bedrock
+model invocation is not available on our new AWS account**: every Bedrock model, including Amazon Nova 2 Lite
+and Nova Lite, returns `ValidationException: Operation not allowed` for this account in ap-south-1 and us-east-1.
+New and free-tier accounts are often restricted from Bedrock until AWS lifts the limit.
+
+Everything else runs on AWS. The model is a deploy parameter, so switching back is configuration, not code:
+
+```bash
+sam deploy --parameter-overrides ModelProvider=bedrock ModelId=global.amazon.nova-2-lite-v1:0
+```
+
+The Gemini key is stored in SSM Parameter Store as a SecureString, like every other secret. Only the user's
+question and the rule engine's tool results (school timetable slots and public air-quality numbers) are sent to
+Gemini. No names, emails or other personal data are sent. The daily email, dashboard, replay and "Check an
+activity" form never call a model.
 
 ## Tests
 
