@@ -27,6 +27,9 @@ FIXTURES = os.environ.get(
     "AIRDAY_FIXTURES", os.path.join(os.path.dirname(__file__), "..", "fixtures", "replay")
 )
 STATION_MAX_AGE_MIN = int(os.environ.get("STATION_MAX_AGE_MIN", "120"))
+# The station band floors the rest of the day. Chosen by the backtest (backtest/report.md): CAMS reads far
+# cleaner than Delhi stations in winter, and a 3-hour window missed most bad hours.
+STATION_FLOOR_HOURS = int(os.environ.get("STATION_FLOOR_HOURS", "24"))
 CACHE_TTL_S = int(os.environ.get("CACHE_TTL_S", "600"))
 
 
@@ -193,7 +196,7 @@ def build_brief(
             official, upstream["official"] = Official(grap_override=profile.get("grapOverride")), "unavailable"
 
     st_hour = latest_fresh_station_hour(station, now) if station and now.date() == date else None
-    bands = hourly_bands(rs, forecast, station, st_hour)
+    bands = hourly_bands(rs, forecast, station, st_hour, escalation_hours=STATION_FLOOR_HOURS)
     plan = build_plan(rs, date.isoformat(), profile["start"], profile["end"], acts, bands)
     brief = to_brief(rs, plan, date, official, mode=mode, upstream=upstream,
                      school_name=profile.get("name", ""), labels={a.id: a.label for a in acts},
