@@ -1,103 +1,89 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useCallback, useEffect, useState } from "react";
+import { BriefView } from "@/components/BriefView";
+import { Chat } from "@/components/Chat";
+import { api, ApiError } from "@/lib/api";
+import { formatDate, todayIST } from "@/lib/bands";
+import type { Brief } from "@/lib/types";
+
+export default function TodayPage() {
+  const [dates, setDates] = useState<string[]>([]);
+  const [replay, setReplay] = useState<string>("");
+  const [brief, setBrief] = useState<Brief | null>(null);
+  const [error, setError] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.replayDates().then((r) => setDates(r.dates)).catch(() => setDates([]));
+    const fromUrl = new URLSearchParams(window.location.search).get("replay");
+    if (fromUrl) setReplay(fromUrl);
+  }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      setBrief(replay ? await api.replay(replay) : await api.briefLive(todayIST()));
+    } catch (e) {
+      setBrief(null);
+      setError(e instanceof ApiError ? e.message : "Something went wrong loading today's plan.");
+    } finally {
+      setLoading(false);
+    }
+  }, [replay]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  function pick(d: string) {
+    setReplay(d);
+    const url = new URL(window.location.href);
+    if (d) url.searchParams.set("replay", d);
+    else url.searchParams.delete("replay");
+    window.history.replaceState(null, "", url);
+  }
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted">Daily air plan</p>
+          <p className="font-semibold">{replay ? "Replay of a past day" : "Today, live"}</p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        <label className="text-sm">
+          <span className="mr-2">View</span>
+          <select value={replay} onChange={(e) => pick(e.target.value)} className="rounded border border-line bg-white px-2 py-1">
+            <option value="">Today (live)</option>
+            {dates.map((d) => (
+              <option key={d} value={d}>
+                Replay: {formatDate(d)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {loading && (
+        <p role="status" className="text-muted">
+          Loading the plan…
+        </p>
+      )}
+      {error && (
+        <div role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-red-800">
+          <p>{error}</p>
+          <button type="button" onClick={load} className="mt-2 text-sm underline">
+            Try again
+          </button>
+        </div>
+      )}
+      {brief && !loading && (
+        <>
+          <BriefView brief={brief} />
+          <Chat date={brief.date} mode={brief.mode} />
+        </>
+      )}
     </div>
   );
 }
