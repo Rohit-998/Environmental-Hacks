@@ -1,6 +1,8 @@
 """Builds briefs: fetches (or loads cached / fixture) data, runs the engine, validates, stores.
 
-This is the only module that combines I/O with the engine. Handlers call into it.
+This is the only module that combines I/O with the engine. Handlers call into it. Every function is scoped to
+one school (tenant). Upstream data is cached in a shared partition keyed by forecast grid cell or sensor, so a
+city with 1,000 schools costs one forecast call, not 1,000.
 """
 from __future__ import annotations
 
@@ -10,6 +12,7 @@ import json
 import logging
 import os
 import time
+import uuid
 from typing import Any
 
 from . import school as schoolmod
@@ -18,7 +21,7 @@ from . import timeutil as tu
 from .brief import Official, to_brief
 from .engine import Reading, build_plan, hourly_bands
 from .rules import RuleSet, load
-from .store import Store, school_pk
+from .store import CACHE_PK, DEMO_SCHOOL, REGISTRY_PK, Store, school_pk
 from .validator import assert_valid
 
 log = logging.getLogger("airday")
@@ -31,46 +34,85 @@ STATION_MAX_AGE_MIN = int(os.environ.get("STATION_MAX_AGE_MIN", "120"))
 # cleaner than Delhi stations in winter, and a 3-hour window missed most bad hours.
 STATION_FLOOR_HOURS = int(os.environ.get("STATION_FLOOR_HOURS", "24"))
 CACHE_TTL_S = int(os.environ.get("CACHE_TTL_S", "600"))
+GRID_DEG = 0.4  # CAMS Global resolution
 
 
-# ---------------------------------------------------------------- profile and timetable
+class SchoolNotFound(KeyError):
+    pass
 
-def get_profile(store: Store) -> dict:
-    p = store.get(school_pk(), "PROFILE")
+
+# ---------------------------------------------------------------- schools (tenants)
+
+def grid_key(lat: float, lon: float) -> tuple[str, float, float]:
+    """Snap to the CAMS 0.4° grid. Schools in the same cell share one forecast fetch."""
+    glat, glon = round(round(lat / GRID_DEG) * GRID_DEG, 2), round(round(lon / GRID_DEG) * GRID_DEG, 2)
+    return f"{glat:.2f}_{glon:.2f}", glat, glon
+
+
+def get_profile(store: Store, school_id: str) -> dict:
+    p = store.get(school_pk(school_id), "PROFILE")
     if p is None:
+        if school_id != DEMO_SCHOOL:
+            raise SchoolNotFound(school_id)
         p = dict(schoolmod.SAMPLE_PROFILE)
-        store.put(school_pk(), "PROFILE", p)
+        save_profile(store, school_id, p)
     return p
 
 
-def get_timetable(store: Store) -> list[dict]:
-    rows = store.query_prefix(school_pk(), "ACTIVITY#")
+def save_profile(store: Store, school_id: str, profile: dict) -> None:
+    store.put(school_pk(school_id), "PROFILE", profile)
+    g, _, _ = grid_key(profile["lat"], profile["lon"])
+    store.put(REGISTRY_PK, f"SCHOOL#{school_id}", {"schoolId": school_id, "grid": g, "name": profile.get("name", "")})
+
+
+def create_school(store: Store, profile: dict, owner: str) -> str:
+    """New tenant. The owner (a Cognito user sub) is mapped to the school server-side."""
+    school_id = uuid.uuid4().hex[:12]
+    save_profile(store, school_id, dict(schoolmod.SAMPLE_PROFILE) | profile | {"owner": owner})
+    store.put(f"USER#{owner}", "SCHOOL", {"schoolId": school_id})
+    return school_id
+
+
+def school_for_user(store: Store, sub: str) -> str | None:
+    item = store.get(f"USER#{sub}", "SCHOOL")
+    return item["schoolId"] if item else None
+
+
+def list_schools(store: Store) -> list[dict]:
+    return [{k: v for k, v in r.items() if k != "SK"} for r in store.query_prefix(REGISTRY_PK, "SCHOOL#")]
+
+
+def get_timetable(store: Store, school_id: str) -> list[dict]:
+    rows = store.query_prefix(school_pk(school_id), "ACTIVITY#")
     if not rows:
+        if school_id != DEMO_SCHOOL:
+            return []
         parsed, _ = schoolmod.parse_timetable_csv(schoolmod.SAMPLE_CSV, "07:45", "14:00")
         rows = schoolmod.with_ids(parsed)
-        replace_timetable(store, rows)
+        replace_timetable(store, school_id, rows)
         return rows
     return [{k: v for k, v in r.items() if k != "SK"} for r in rows]
 
 
-def replace_timetable(store: Store, rows: list[dict]) -> None:
-    for old in store.query_prefix(school_pk(), "ACTIVITY#"):
-        store.delete(school_pk(), old["SK"])
+def replace_timetable(store: Store, school_id: str, rows: list[dict]) -> None:
+    pk = school_pk(school_id)
+    for old in store.query_prefix(pk, "ACTIVITY#"):
+        store.delete(pk, old["SK"])
     for r in rows:
-        store.put(school_pk(), f"ACTIVITY#{r['id']}", r)
+        store.put(pk, f"ACTIVITY#{r['id']}", r)
 
 
-# ---------------------------------------------------------------- data with caching
+# ---------------------------------------------------------------- shared upstream cache
 
 def _cached(store: Store, key: str, fetch, ttl: int = CACHE_TTL_S) -> tuple[Any, str]:
-    """Returns (data, status). status: fresh | cached | stale-cache. Raises UpstreamError if nothing."""
-    item = store.get(school_pk(), key)
+    """Returns (data, status). status: fresh | cached | stale-cache from HH:MM. Raises UpstreamError if nothing."""
+    item = store.get(CACHE_PK, key)
     now = time.time()
     if item and now - item["fetchedAt"] < ttl:
         return item["raw"], "cached"
     try:
         raw = fetch()
-        store.put(school_pk(), key, {"raw": raw, "fetchedAt": now})
+        store.put(CACHE_PK, key, {"raw": raw, "fetchedAt": now, "expiresAt": int(now) + 2 * 86400})
         return raw, "fresh"
     except sources.UpstreamError:
         if item:
@@ -80,10 +122,17 @@ def _cached(store: Store, key: str, fetch, ttl: int = CACHE_TTL_S) -> tuple[Any,
 
 
 def live_forecast(store: Store, profile: dict, date: dt.date, days: int = 3) -> tuple[dict[str, list[Reading]], str]:
+    g, glat, glon = grid_key(profile["lat"], profile["lon"])
     start, end = date.isoformat(), (date + dt.timedelta(days=days - 1)).isoformat()
-    raw, status = _cached(store, f"CACHE#openmeteo#{start}",
-                          lambda: sources.fetch_open_meteo(profile["lat"], profile["lon"], start, end))
+    raw, status = _cached(store, f"openmeteo#{g}#{start}",
+                          lambda: sources.fetch_open_meteo(glat, glon, start, end))
     return sources.parse_open_meteo(raw), status
+
+
+def warm_forecast(store: Store, lat: float, lon: float, date: dt.date) -> str:
+    """Planner helper: fetch one grid cell's forecast into the shared cache."""
+    _, status = live_forecast(store, {"lat": lat, "lon": lon}, date)
+    return status
 
 
 def live_station(store: Store, profile: dict, date: dt.date) -> tuple[list[Reading], str]:
@@ -97,7 +146,7 @@ def live_station(store: Store, profile: dict, date: dt.date) -> tuple[list[Readi
         if not sid:
             out[name] = {}
             continue
-        raw, _ = _cached(store, f"CACHE#openaq#{name}#{date.isoformat()}",
+        raw, _ = _cached(store, f"openaq#{sid}#{date.isoformat()}",
                          lambda sid=sid: sources.fetch_openaq_hours(int(sid), date.isoformat(), key))
         out[name] = sources.parse_openaq_hours(raw)
     return sources.merge_station(out["pm25"], out["pm10"]), "ok"
@@ -107,7 +156,7 @@ def live_official(store: Store, profile: dict) -> tuple[Official, str]:
     key = os.environ.get("DATA_GOV_API_KEY")
     if not key:
         return Official(grap_override=profile.get("grapOverride")), "not configured"
-    raw, status = _cached(store, "CACHE#datagov#latest", lambda: sources.fetch_data_gov(key), ttl=1800)
+    raw, status = _cached(store, "datagov#Delhi#latest", lambda: sources.fetch_data_gov(key), ttl=1800)
     stations = sources.parse_data_gov(raw)
     from .aqi import city_average
 
@@ -147,20 +196,30 @@ def load_fixture(date: str) -> dict:
         return json.load(fh)
 
 
+def load_fixture_containing(date: dt.date) -> dict:
+    """Replay fixtures hold the replay date plus 2 more days, so chat can plan ahead."""
+    for d in replay_dates():
+        start = dt.date.fromisoformat(d)
+        if start <= date <= start + dt.timedelta(days=2):
+            return load_fixture(d)
+    raise KeyError(f"no replay data covers {date}")
+
+
 # ---------------------------------------------------------------- build
 
 def build_brief(
     store: Store,
+    school_id: str,
     date: dt.date,
     mode: str = "live",
     now: dt.datetime | None = None,
     rs: RuleSet | None = None,
 ) -> dict:
-    """Build and validate a brief. Live mode fetches upstream; replay mode uses the frozen fixture
-    "as of 06:00" on that date. Raises BriefInvalid or UpstreamError."""
+    """Build and validate a brief. Live mode reads upstream through the shared cache; replay mode uses the
+    frozen fixture "as of 06:00" on that date. Raises BriefInvalid or SchoolNotFound."""
     rs = rs or load()
-    profile = get_profile(store)
-    rows = get_timetable(store)
+    profile = get_profile(store, school_id)
+    rows = get_timetable(store, school_id)
     acts = schoolmod.activities_for(rows, date)
     upstream: dict[str, str] = {}
 
@@ -201,6 +260,7 @@ def build_brief(
     brief = to_brief(rs, plan, date, official, mode=mode, upstream=upstream,
                      school_name=profile.get("name", ""), labels={a.id: a.label for a in acts},
                      generated_at=now.isoformat(timespec="seconds"))
+    brief["schoolId"] = school_id
     brief["schoolDay"] = schoolmod.is_school_day(profile, date)
     if upstream.get("forecast") == "unavailable":
         brief["headline"] = "Forecast unavailable today. Check the official AQI before outdoor activities."
@@ -208,13 +268,13 @@ def build_brief(
     return brief
 
 
-def store_brief(store: Store, brief: dict) -> None:
+def store_brief(store: Store, school_id: str, brief: dict) -> None:
     key = ("REPLAY#" if brief["mode"] == "replay" else "BRIEF#") + brief["date"]
-    store.put(school_pk(), key, brief)
+    store.put(school_pk(school_id), key, brief)
 
 
-def get_stored(store: Store, date: str, mode: str = "live") -> dict | None:
-    return store.get(school_pk(), ("REPLAY#" if mode == "replay" else "BRIEF#") + date)
+def get_stored(store: Store, school_id: str, date: str, mode: str = "live") -> dict | None:
+    return store.get(school_pk(school_id), ("REPLAY#" if mode == "replay" else "BRIEF#") + date)
 
 
 def diff(old: dict | None, new: dict) -> list[dict]:
@@ -230,7 +290,7 @@ def diff(old: dict | None, new: dict) -> list[dict]:
     return out
 
 
-def evaluate(store: Store, typ: str, date: dt.date, start: str, end: str, mode: str = "live",
+def evaluate(store: Store, school_id: str, typ: str, date: dt.date, start: str, end: str, mode: str = "live",
              rs: RuleSet | None = None) -> dict:
     """Deterministic activity check (the "Check an activity" form and the chat tool)."""
     rs = rs or load()
@@ -245,7 +305,7 @@ def evaluate(store: Store, typ: str, date: dt.date, start: str, end: str, mode: 
         fx = load_fixture_containing(date)
         forecast = sources.parse_open_meteo(fx["openMeteo"]).get(date.isoformat(), [])
     else:
-        profile = get_profile(store)
+        profile = get_profile(store, school_id)
         days, _ = live_forecast(store, profile, tu.now_ist().date())
         forecast = days.get(date.isoformat(), [])
     bands = hourly_bands(rs, forecast)
@@ -259,12 +319,3 @@ def evaluate(store: Store, typ: str, date: dt.date, start: str, end: str, mode: 
         "hours": [{"hour": h, "pm25": bands[h].pm25 if h in bands else None,
                    "band": bands[h].band if h in bands else "unknown"} for h in hrs],
     }
-
-
-def load_fixture_containing(date: dt.date) -> dict:
-    """Replay fixtures hold the replay date plus 2 more days, so chat can plan ahead."""
-    for d in replay_dates():
-        start = dt.date.fromisoformat(d)
-        if start <= date <= start + dt.timedelta(days=2):
-            return load_fixture(d)
-    raise KeyError(f"no replay data covers {date}")

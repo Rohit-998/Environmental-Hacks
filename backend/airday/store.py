@@ -1,8 +1,10 @@
 """Storage. One interface, two backends: in-memory (dev server, tests) and DynamoDB single table.
 
-Keys follow PRD §12:
-  SCHOOL#<id> / PROFILE, ACTIVITY#<id>, BRIEF#<date>, REPLAY#<date>, EMAIL#<date>, CACHE#<src>#<date>
-  COUNTER#<date> / AGENT
+Keys (PRD §12), one partition per tenant plus two shared partitions:
+  SCHOOL#<id> / PROFILE, ACTIVITY#<id>, BRIEF#<date>, REPLAY#<date>, EMAIL#<date>
+  REGISTRY    / SCHOOL#<id>                    school index for the planner
+  CACHE       / openmeteo#<grid>#<date>, ...   upstream responses shared by every school in a grid cell
+  COUNTER#<date> / AGENT#<id>                  per-tenant daily agent cap
 """
 from __future__ import annotations
 
@@ -14,7 +16,9 @@ import time
 from decimal import Decimal
 from typing import Any, Protocol
 
-SCHOOL_ID = os.environ.get("AIRDAY_SCHOOL_ID", "demo")
+DEMO_SCHOOL = "demo"
+CACHE_PK = "CACHE"        # shared upstream cache, keyed by forecast grid cell / sensor, not by school
+REGISTRY_PK = "REGISTRY"  # one row per school, read by the 06:00 planner
 
 
 class ConditionFailed(Exception):
@@ -31,7 +35,7 @@ class Store(Protocol):
     def incr(self, pk: str, sk: str, ttl: int | None = None) -> int: ...
 
 
-def school_pk(school_id: str = SCHOOL_ID) -> str:
+def school_pk(school_id: str) -> str:
     return f"SCHOOL#{school_id}"
 
 
