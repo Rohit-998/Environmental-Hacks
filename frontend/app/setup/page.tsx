@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, ApiError, getAdminKey, setAdminKey } from "@/lib/api";
-import type { ActivityRow, Profile, RowError } from "@/lib/types";
+import { currentSession } from "@/lib/session";
+import type { ActivityRow, Me, Profile, RowError } from "@/lib/types";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -185,13 +187,95 @@ function Timetable({ canEdit }: { canEdit: boolean }) {
   );
 }
 
-export default function SetupPage() {
-  const [canEdit, setCanEdit] = useState(false);
+function CreateSchool({ onCreated }: { onCreated: () => void }) {
+  const [name, setName] = useState("");
+  const [query, setQuery] = useState("");
+  const [place, setPlace] = useState<{ locality: string; lat: number; lon: number } | null>(null);
+  const [error, setError] = useState("");
+
+  async function findPlace() {
+    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&country=IN`).then((x) => x.json()).catch(() => null);
+    const hit = r?.results?.[0];
+    if (hit) setPlace({ locality: [hit.name, hit.admin1].filter(Boolean).join(", "), lat: hit.latitude, lon: hit.longitude });
+    else setError("No place found. Try a locality name like Rohini or Dwarka.");
+  }
+
+  async function create(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    try {
+      await api.createSchool({ name, ...(place ?? {}) });
+      onCreated();
+    } catch (err) {
+      const errs = err instanceof ApiError ? (err.body.errors as string[] | undefined) : undefined;
+      setError(errs?.join("; ") || (err instanceof Error ? err.message : "Couldn't create the school"));
+    }
+  }
+
   return (
-    <div className="space-y-5">
+    <form onSubmit={create} className="space-y-3 rounded-lg border border-line bg-white p-4">
+      <h2 className="font-semibold">Create your school</h2>
+      <label className="block text-sm">
+        School name
+        <input required className="mt-1 block w-full rounded border border-line px-2 py-1" value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <div className="text-sm">
+        <label htmlFor="new-place">Locality</label>
+        <div className="mt-1 flex gap-2">
+          <input id="new-place" className="min-w-0 flex-1 rounded border border-line px-2 py-1" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="e.g. Dwarka" />
+          <button type="button" disabled={!query.trim()} onClick={findPlace} className="rounded border border-line px-3 disabled:opacity-50">
+            Find
+          </button>
+        </div>
+        <p className="mt-1 text-xs text-muted">{place ? `Using ${place.locality}` : "Defaults to Rohini, Delhi if you skip this."}</p>
+      </div>
+      {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
+      <button type="submit" disabled={!name.trim()} className="rounded bg-brand px-4 py-2 font-semibold text-white disabled:opacity-50">
+        Create school
+      </button>
+    </form>
+  );
+}
+
+export default function SetupPage() {
+  const [me, setMe] = useState<Me | null>(null);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [demoKey, setDemoKey] = useState(false);
+  const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    currentSession().then(async (s) => {
+      setSignedIn(s.signedIn);
+      setMe(s.signedIn ? await api.me().catch(() => null) : null);
+    });
+  }, [reload]);
+
+  if (signedIn === null) return <p className="text-muted">Loading…</p>;
+
+  if (signedIn && me && !me.schoolId) {
+    return (
+      <div className="space-y-5">
+        <h1 className="text-xl font-bold">Setup</h1>
+        <CreateSchool onCreated={() => setReload((n) => n + 1)} />
+      </div>
+    );
+  }
+
+  const canEdit = signedIn ? true : demoKey;
+  return (
+    <div className="space-y-5" key={reload}>
       <h1 className="text-xl font-bold">Setup</h1>
-      <AdminKey onChange={setCanEdit} />
-      {!canEdit && <p className="text-sm text-muted">Add the admin key to edit. You can still view everything.</p>}
+      {signedIn ? (
+        <p className="text-sm text-muted">Editing your school. Only you can see and change it.</p>
+      ) : (
+        <>
+          <p className="rounded-lg border border-line bg-white p-3 text-sm">
+            This is the shared demo school. <Link href="/signin/" className="underline">Sign in</Link> to set up your own.
+          </p>
+          <AdminKey onChange={setDemoKey} />
+          {!demoKey && <p className="text-sm text-muted">Add the demo admin key to edit the demo school. You can still view everything.</p>}
+        </>
+      )}
       <ProfileForm canEdit={canEdit} />
       <Timetable canEdit={canEdit} />
     </div>

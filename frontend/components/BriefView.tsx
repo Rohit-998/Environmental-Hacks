@@ -67,6 +67,15 @@ export function BriefView({ brief }: { brief: Brief }) {
           data. Live forecasts can be less precise.
         </p>
       )}
+      {!brief.actions.some((a) => a.kind === "activity") && (
+        <p role="note" className="rounded-lg border border-line bg-white p-3 text-sm">
+          No outdoor activities on the timetable for {brief.weekday}.{" "}
+          <a href="/setup/" className="font-semibold underline">
+            Add your timetable
+          </a>{" "}
+          to get a plan for assembly, recess and PE.
+        </p>
+      )}
       {brief.schoolDay === false && (
         <p role="note" className="rounded-lg border border-line bg-white p-3 text-sm">
           {formatDate(brief.date)} is not a school day, so no email goes out. The plan below is for reference.
