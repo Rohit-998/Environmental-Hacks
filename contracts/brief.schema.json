@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://airday.local/brief.schema.json",
+  "title": "AirDay brief",
+  "description": "Contract between backend and frontend. Frozen Thu 18:00; additive changes only after.",
+  "type": "object",
+  "required": ["schemaVersion", "rulesVersion", "mode", "date", "weekday", "subject", "headline",
+               "worstBand", "worstBandName", "official", "grap", "hours", "actions", "parentNote", "generatedAt"],
+  "$defs": {
+    "band": {"enum": ["good", "satisfactory", "moderate", "poor", "very_poor", "severe", "unknown"]},
+    "nullableNumber": {"type": ["number", "null"]},
+    "nullableString": {"type": ["string", "null"]}
+  },
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "rulesVersion": {"type": "string"},
+    "mode": {"enum": ["live", "replay"]},
+    "date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+    "weekday": {"enum": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]},
+    "school": {"type": "string"},
+    "generatedAt": {"type": "string"},
+    "subject": {"type": "string"},
+    "headline": {"type": "string"},
+    "worstBand": {"$ref": "#/$defs/band"},
+    "worstBandName": {"type": "string"},
+    "official": {
+      "type": "object",
+      "required": ["stationAqi", "cityAqi", "citySource"],
+      "properties": {
+        "stationAqi": {"type": ["integer", "null"]},
+        "stationBand": {"$ref": "#/$defs/nullableString"},
+        "stationBandName": {"$ref": "#/$defs/nullableString"},
+        "stationName": {"$ref": "#/$defs/nullableString"},
+        "stationAsOf": {"$ref": "#/$defs/nullableString"},
+        "cityAqi": {"type": ["integer", "null"]},
+        "cityBand": {"$ref": "#/$defs/nullableString"},
+        "cityBandName": {"$ref": "#/$defs/nullableString"},
+        "citySource": {"enum": ["live", "bulletin"]},
+        "cityAsOf": {"$ref": "#/$defs/nullableString"}
+      }
+    },
+    "grap": {
+      "type": "object",
+      "required": ["stage", "kind", "label"],
+      "properties": {
+        "stage": {"enum": ["I", "II", "III", "IV", null]},
+        "kind": {"enum": ["indicative", "official"]},
+        "label": {"type": "string"}
+      }
+    },
+    "hours": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["hour", "pm25", "pm10", "band", "bandName", "forecastBand", "escalated"],
+        "properties": {
+          "hour": {"type": "integer", "minimum": 0, "maximum": 23},
+          "pm25": {"$ref": "#/$defs/nullableNumber"},
+          "pm10": {"$ref": "#/$defs/nullableNumber"},
+          "band": {"$ref": "#/$defs/band"},
+          "bandName": {"type": "string"},
+          "forecastBand": {"$ref": "#/$defs/band"},
+          "stationPm25": {"$ref": "#/$defs/nullableNumber"},
+          "stationPm10": {"$ref": "#/$defs/nullableNumber"},
+          "escalated": {"type": "boolean"}
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ruleIds", "kind", "activityId", "hours", "band", "bandName", "change", "text"],
+        "properties": {
+          "ruleIds": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^R-[A-Z]+-[A-Z]+$"}},
+          "kind": {"enum": ["activity", "window", "note"]},
+          "activityId": {"$ref": "#/$defs/nullableString"},
+          "label": {"$ref": "#/$defs/nullableString"},
+          "hours": {"type": "array", "items": {"type": "integer"}},
+          "band": {"$ref": "#/$defs/band"},
+          "bandName": {"type": "string"},
+          "change": {"type": "boolean"},
+          "text": {"type": "string"}
+        }
+      }
+    },
+    "parentNote": {
+      "type": "object",
+      "required": ["ruleId", "send", "optional", "en", "hi", "addition"],
+      "properties": {
+        "ruleId": {"type": "string"},
+        "send": {"type": "boolean"},
+        "optional": {"type": "boolean"},
+        "en": {"type": "string"},
+        "hi": {"type": "string"},
+        "addition": {
+          "type": ["object", "null"],
+          "properties": {
+            "en": {"type": "string"},
+            "hi": {"type": ["string", "null"]},
+            "hiValidated": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    "upstream": {"type": "object", "additionalProperties": {"type": "string"}}
+  }
+}
