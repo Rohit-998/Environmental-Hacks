@@ -5,12 +5,11 @@ import base64
 import json
 import logging
 
-from airday import agent, api
+from airday import agent, api, secrets
 from airday.store import default_store
-from handlers.api import _load_admin_key
 
 logging.getLogger().setLevel(logging.INFO)
-_load_admin_key()
+secrets.load()
 
 
 def handler(event, context):

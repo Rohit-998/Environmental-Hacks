@@ -6,23 +6,11 @@ import json
 import logging
 import os
 
-from airday import api
+from airday import api, secrets
 from airday.store import default_store
 
 logging.getLogger().setLevel(logging.INFO)
-ALLOWED_ORIGINS = {o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()}
-
-
-def _load_admin_key() -> None:
-    """ADMIN_KEY comes from SSM SecureString; read once per cold start."""
-    name = os.environ.get("ADMIN_KEY_PARAM")
-    if name and not os.environ.get("ADMIN_KEY"):
-        import boto3
-
-        os.environ["ADMIN_KEY"] = boto3.client("ssm").get_parameter(Name=name, WithDecryption=True)["Parameter"]["Value"]
-
-
-_load_admin_key()
+secrets.load()
 
 
 def handler(event, context):

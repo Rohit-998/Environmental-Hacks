@@ -9,7 +9,7 @@ import json
 import logging
 import os
 
-from airday import mailer, service
+from airday import mailer, secrets, service
 from airday import school as schoolmod
 from airday import timeutil as tu
 from airday.store import default_store
@@ -17,6 +17,7 @@ from airday.validator import BriefInvalid
 
 log = logging.getLogger()
 log.setLevel(logging.INFO)
+secrets.load()
 
 SEND_CUTOFF = os.environ.get("SEND_CUTOFF", "07:30")
 
