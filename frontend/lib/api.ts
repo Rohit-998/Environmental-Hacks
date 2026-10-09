@@ -78,6 +78,7 @@ export const api = {
   createSchool: (p: Partial<Profile> & { principalEmail?: string }) => request<Profile & { schoolId: string }>("POST", "/me/school", { body: p }),
   school: () => request<Profile>("GET", "/school", T),
   updateSchool: (patch: Partial<Profile> & { principalEmail?: string }) => request<Profile>("PUT", "/school", { ...T, body: patch }),
+  resendVerification: () => request<Profile>("POST", "/school/verify-email", T),
   activities: () => request<{ activities: ActivityRow[] }>("GET", "/activities", T),
   uploadCsv: (csv: string) => request<{ activities: ActivityRow[] }>("PUT", "/activities", { ...T, csv }),
   sampleCsv: () => request<{ csv: string }>("GET", "/activities/sample"),

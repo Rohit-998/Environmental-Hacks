@@ -76,6 +76,9 @@ export interface Me {
   demo: boolean;
 }
 
+// "pending" until the principal clicks the AWS verification link (SES sandbox); "not-checked" in local dev.
+export type EmailStatus = "verified" | "pending" | "failed" | "not-checked" | null;
+
 export interface Profile {
   name: string;
   locality: string;
@@ -88,6 +91,7 @@ export interface Profile {
   cpcbStation: string;
   grapOverride: { stage: string; setAt?: string; expiresAt?: string } | null;
   hasEmail: boolean;
+  emailStatus?: EmailStatus;
 }
 
 export interface ActivityRow {

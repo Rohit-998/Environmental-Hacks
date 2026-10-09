@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, ApiError, getAdminKey, setAdminKey } from "@/lib/api";
 import { currentSession } from "@/lib/session";
-import type { ActivityRow, Me, Profile, RowError } from "@/lib/types";
+import type { ActivityRow, EmailStatus as EmailStatusT, Me, Profile, RowError } from "@/lib/types";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -108,11 +108,44 @@ function ProfileForm({ canEdit }: { canEdit: boolean }) {
         Principal email for the 06:00 plan {p.hasEmail && <span className="text-muted">(set; type a new one to change it)</span>}
         <input type="email" className={field} disabled={!canEdit} value={email} onChange={(e) => setEmail(e.target.value)} placeholder={p.hasEmail ? "••••••" : "principal@school.in"} />
       </label>
+      {p.hasEmail && <EmailStatus status={p.emailStatus ?? null} canEdit={canEdit} onResent={setP} />}
       <div className="sm:col-span-2">
         <button type="submit" disabled={!canEdit} className="rounded bg-brand px-4 py-2 font-semibold text-white disabled:opacity-50">Save school</button>
         {msg && <span role={msg.ok ? "status" : "alert"} className={`ml-3 text-sm ${msg.ok ? "text-green-800" : "text-red-800"}`}>{msg.text}</span>}
       </div>
     </form>
+  );
+}
+
+// While AirDay's AWS account is in the SES sandbox, AWS only delivers to addresses that clicked its verification link.
+function EmailStatus({ status, canEdit, onResent }: { status: EmailStatusT; canEdit: boolean; onResent: (p: Profile) => void }) {
+  const [busy, setBusy] = useState(false);
+  if (status === "verified" || status === "not-checked" || status === null) {
+    return status === "verified" ? <p role="status" className="text-sm text-green-800 sm:col-span-2">Email confirmed. The 06:00 plan will arrive here.</p> : null;
+  }
+  async function resend() {
+    setBusy(true);
+    try {
+      onResent(await api.resendVerification());
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div role="status" className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 sm:col-span-2">
+      {status === "pending" ? (
+        <>
+          <strong>Check your inbox.</strong> Amazon Web Services sent a verification link (subject starts &ldquo;Amazon Web
+          Services – Email Address Verification Request&rdquo;). Click it once, and the 06:00 plan starts arriving. Look in
+          spam if you don&apos;t see it.
+        </>
+      ) : (
+        <>The verification link expired or failed. Send a new one and click it within 24 hours.</>
+      )}
+      <button type="button" disabled={!canEdit || busy} onClick={resend} className="ml-2 underline disabled:opacity-50">
+        {busy ? "Sending…" : "Send the link again"}
+      </button>
+    </div>
   );
 }
 
