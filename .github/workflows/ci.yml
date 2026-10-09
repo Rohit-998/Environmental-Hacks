@@ -96,4 +96,7 @@ jobs:
           Stage=prod
           SesSender=${{ vars.SES_SENDER }}
           DashboardUrl=${{ vars.DASHBOARD_URL }}
+          ModelProvider=gemini
+          ModelId=gemini-3.5-flash
+          DemoAdmin=true
           AlarmEmail=${{ vars.ALARM_EMAIL }}
