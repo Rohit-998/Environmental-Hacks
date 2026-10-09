@@ -47,6 +47,20 @@ def test_evaluate_in_replay_returns_a_rule():
     assert r["ruleId"].startswith("R-") and r["ruleId"].endswith("-PE")
 
 
+def test_evaluate_matches_the_brief_on_the_replay_day():
+    """The chat tool and the 'Check an activity' form must give the same answer as the morning plan."""
+    s = MemoryStore()
+    brief = service.build_brief(s, "demo", HERO, mode="replay")
+    recess = next(a for a in brief["actions"] if a["kind"] == "activity" and "Recess" in a["text"])
+    r = service.evaluate(s, "demo", "recess", HERO, "10:30", "10:50", mode="replay")
+    assert r["ruleId"] == recess["ruleIds"][0] == "R-SV-REC"
+
+
+def test_evaluate_uses_forecast_only_for_days_without_station_data():
+    r = service.evaluate(MemoryStore(), "demo", "recess", dt.date(2025, 11, 20), "10:30", "10:50", mode="replay")
+    assert r["ruleId"] != "R-SV-REC"  # the station floor belongs to 19 Nov, not the next day
+
+
 def test_station_freshness():
     now = dt.datetime(2025, 11, 19, 9, 30, tzinfo=IST)
     st = [Reading(6, 100, None), Reading(7, 120, None)]

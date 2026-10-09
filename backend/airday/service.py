@@ -197,6 +197,12 @@ def load_fixture(date: str) -> dict:
         return json.load(fh)
 
 
+def _fixture_station(fx: dict) -> list[Reading]:
+    oaq = fx.get("openaq") or {}
+    return sources.merge_station({int(k): v for k, v in (oaq.get("pm25") or {}).items()},
+                                 {int(k): v for k, v in (oaq.get("pm10") or {}).items()})
+
+
 def load_fixture_containing(date: dt.date) -> dict:
     """Replay fixtures hold the replay date plus 2 more days, so chat can plan ahead."""
     for d in replay_dates():
@@ -227,12 +233,8 @@ def build_brief(
     if mode == "replay":
         fx = load_fixture(date.isoformat())
         forecast = sources.parse_open_meteo(fx["openMeteo"]).get(date.isoformat(), [])
-        station = sources.merge_station(
-            {int(k): v for k, v in (fx.get("openaq", {}).get("pm25") or {}).items()},
-            {int(k): v for k, v in (fx.get("openaq", {}).get("pm10") or {}).items()},
-        )
         # Replay is "as of 06:00": only station readings from hours before 06:00 are known.
-        station = [r for r in station if r.hour < 6]
+        station = [r for r in _fixture_station(fx) if r.hour < 6]
         now = dt.datetime.combine(date, dt.time(6, 0), tu.IST)
         off = fx.get("official", {})
         official = Official(city_aqi=off.get("cityAqi"), city_source="bulletin", city_as_of=off.get("cityAsOf"))
@@ -302,14 +304,29 @@ def evaluate(store: Store, school_id: str, typ: str, date: dt.date, start: str, 
     s, e = tu.parse_hhmm(start), tu.parse_hhmm(end)
     if s >= e:
         raise ValueError("start must be before end")
+    # Same bands as the brief: the station floor applies to the day the readings are from (the replay day as of
+    # 06:00, or today live). Future days have no station data yet, so they use the forecast alone.
+    station: list[Reading] = []
+    now: dt.datetime | None = None
     if mode == "replay":
         fx = load_fixture_containing(date)
         forecast = sources.parse_open_meteo(fx["openMeteo"]).get(date.isoformat(), [])
+        if fx["date"] == date.isoformat():
+            station = [r for r in _fixture_station(fx) if r.hour < 6]
+            now = dt.datetime.combine(date, dt.time(6, 0), tu.IST)
     else:
         profile = get_profile(store, school_id)
-        days, _ = live_forecast(store, profile, tu.now_ist().date())
+        today = tu.now_ist().date()
+        days, _ = live_forecast(store, profile, today)
         forecast = days.get(date.isoformat(), [])
-    bands = hourly_bands(rs, forecast)
+        if date == today:
+            try:
+                station, _ = live_station(store, profile, date)
+            except sources.UpstreamError:
+                station = []
+            now = tu.now_ist()
+    st_hour = latest_fresh_station_hour(station, now) if station and now else None
+    bands = hourly_bands(rs, forecast, station, st_hour, escalation_hours=STATION_FLOOR_HOURS)
     hrs = tu.hours_overlapped(s, e)
     band = activity_band(rs, bands, hrs)
     rule = rs.rule(band, typ)
