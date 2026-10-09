@@ -73,11 +73,10 @@ def _model(model_id: str | None = None):
     # Set MODEL_PROVIDER=bedrock (and MODEL_ID to a Bedrock model) once access is granted; no code change needed.
     provider = os.environ.get("MODEL_PROVIDER", "gemini")
     if provider == "gemini":
-        from strands.models.gemini import GeminiModel
-
         key = os.environ.get("GEMINI_API_KEY")
         if not key:
             raise AgentError(503, "Assistant unavailable: GEMINI_API_KEY is not configured.")
+        from strands.models.gemini import GeminiModel
         # Gemini counts its internal reasoning against max_output_tokens, so the limit is set well above the
         # length of a 2-4 sentence answer. Each attempt is bounded so the primary plus a fallback fit inside
         # the 25 s Lambda timeout (HTTP API limit is 30 s).
