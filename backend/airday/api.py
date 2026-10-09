@@ -15,7 +15,7 @@ import os
 from collections.abc import Callable
 from typing import Any
 
-from . import mailer, service
+from . import mailer, service, verify
 from . import school as schoolmod
 from . import timeutil as tu
 from .auth import Principal, demo_principal, user_principal
@@ -98,21 +98,54 @@ def create_school(store, p, q, body, headers) -> Response:
         raise HttpError(409, "you already have a school", schoolId=p.school_id)
     patch = _json(body)
     profile = _apply_patch(dict(schoolmod.SAMPLE_PROFILE), patch)
+    _verify_if_changed({}, profile)
     school_id = service.create_school(store, profile, owner=p.sub)
-    return 201, {"schoolId": school_id, **schoolmod.public_profile(profile)}
+    return 201, {"schoolId": school_id, **_public(profile)}
+
+
+def _verify_if_changed(old: dict, new: dict) -> None:
+    """SES sandbox: a new principal email gets a verification link before the 06:00 plan can reach it."""
+    email = new.get("principalEmail") or ""
+    if not email:
+        new["emailStatus"] = None
+    elif email != old.get("principalEmail") or not old.get("emailStatus"):
+        new["emailStatus"] = verify.verifier().request(email)
+
+
+def _public(profile: dict) -> dict:
+    return schoolmod.public_profile(profile) | {"emailStatus": profile.get("emailStatus")}
 
 
 def get_school(store, p, q, body, headers) -> Response:
     sid = require_school(p)
-    return 200, schoolmod.public_profile(service.get_profile(store, sid))
+    profile = service.get_profile(store, sid)
+    if profile.get("principalEmail") and profile.get("emailStatus") == verify.PENDING:
+        status = verify.verifier().status(profile["principalEmail"])
+        if status != verify.PENDING:  # the principal clicked the link (or it expired): remember the outcome
+            profile["emailStatus"] = status
+            service.save_profile(store, sid, profile)
+    return 200, _public(profile)
 
 
 def put_school(store, p, q, body, headers) -> Response:
     require_write(p)
     sid = require_school(p)
-    new = _apply_patch(service.get_profile(store, sid), _json(body))
+    old = service.get_profile(store, sid)
+    new = _apply_patch(old, _json(body))
+    _verify_if_changed(old, new)
     service.save_profile(store, sid, new)
-    return 200, schoolmod.public_profile(new)
+    return 200, _public(new)
+
+
+def post_resend_verification(store, p, q, body, headers) -> Response:
+    require_write(p)
+    sid = require_school(p)
+    profile = service.get_profile(store, sid)
+    if not profile.get("principalEmail"):
+        raise HttpError(400, "set a principal email first")
+    profile["emailStatus"] = verify.verifier().request(profile["principalEmail"])
+    service.save_profile(store, sid, profile)
+    return 200, _public(profile)
 
 
 def get_activities(store, p, q, body, headers) -> Response:
@@ -236,6 +269,7 @@ def get_health(store, p, q, body, headers) -> Response:
 TENANT_ROUTES: dict[tuple[str, str], Handler] = {
     ("GET", "/school"): get_school,
     ("PUT", "/school"): put_school,
+    ("POST", "/school/verify-email"): post_resend_verification,
     ("GET", "/activities"): get_activities,
     ("PUT", "/activities"): put_activities,
     ("GET", "/brief"): get_brief,

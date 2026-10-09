@@ -16,7 +16,7 @@ import os
 from collections.abc import Callable, Iterable
 from typing import Any
 
-from . import mailer, service
+from . import mailer, service, verify
 from . import school as schoolmod
 from . import timeutil as tu
 from .store import Store
@@ -62,6 +62,11 @@ def run_job(store: Store, job: dict, now: dt.datetime,
         return base | {"skipped": True, "reason": f"after send cutoff {SEND_CUTOFF}"}
 
     to = profile.get("principalEmail")
+    unverified = None
+    if send and to and not verify.verifier().deliverable(to):
+        # SES sandbox: the principal hasn't clicked the verification link yet. Build and store the brief (the
+        # dashboard shows it) but don't send, so SES doesn't reject it and SQS doesn't retry into the DLQ.
+        unverified, to = to, None
     try:
         brief = service.build_brief(store, school_id, date, mode="live", now=now)
     except BriefInvalid as e:
@@ -73,7 +78,7 @@ def run_job(store: Store, job: dict, now: dt.datetime,
         raise
 
     service.store_brief(store, school_id, brief)
-    email = {"sent": False, "reason": "email not configured"}
+    email = {"sent": False, "reason": "principal email not verified yet" if unverified else "email not configured"}
     if send and to:
         email = mailer.send_daily(store, school_id, brief, to, send, dashboard_url)
     return base | {
