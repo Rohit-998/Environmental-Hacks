@@ -186,7 +186,8 @@ Resources:
         - DynamoDBCrudPolicy: {TableName: !Ref Table}
         - Statement:
             - Effect: Allow
-              Action: [ses:SendEmail]
+              # CreateEmailIdentity: SES sandbox, send a principal the verification link when they save an email.
+              Action: [ses:SendEmail, ses:CreateEmailIdentity, ses:GetEmailIdentity, ses:GetAccount]
               Resource: "*"
             - Effect: Allow
               Action: [ssm:GetParameters]
@@ -279,7 +280,7 @@ Resources:
         - DynamoDBCrudPolicy: {TableName: !Ref Table}
         - Statement:
             - Effect: Allow
-              Action: [ses:SendEmail]
+              Action: [ses:SendEmail, ses:GetEmailIdentity, ses:GetAccount]
               Resource: "*"
             - Effect: Allow
               Action: [ssm:GetParameters]
