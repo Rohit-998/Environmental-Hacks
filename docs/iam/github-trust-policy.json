@@ -8,7 +8,7 @@
       "Condition": {
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": "repo:Rohit-998/Environmental-Hacks:environment:prod"
+          "token.actions.githubusercontent.com:sub": "repo:Rohit-998@178720064/Environmental-Hacks@1410026826:environment:prod"
         }
       }
     }
