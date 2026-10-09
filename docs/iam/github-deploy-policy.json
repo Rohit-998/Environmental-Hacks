@@ -1,0 +1,68 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CloudFormationForThisStackOnly",
+      "Effect": "Allow",
+      "Action": "cloudformation:*",
+      "Resource": [
+        "arn:aws:cloudformation:ap-south-1:768580176216:stack/airday-prod/*",
+        "arn:aws:cloudformation:ap-south-1:768580176216:stack/aws-sam-cli-managed-default/*",
+        "arn:aws:cloudformation:ap-south-1:aws:transform/Serverless-2016-10-31"
+      ]
+    },
+    {
+      "Sid": "CloudFormationRead",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:ValidateTemplate",
+        "cloudformation:GetTemplateSummary",
+        "cloudformation:ListStacks",
+        "cloudformation:DescribeStacks"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SamArtifactBucket",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket", "s3:GetBucketLocation", "s3:CreateBucket",
+                 "s3:PutBucketPolicy", "s3:PutBucketVersioning", "s3:PutEncryptionConfiguration",
+                 "s3:PutBucketPublicAccessBlock", "s3:PutBucketTagging"],
+      "Resource": ["arn:aws:s3:::aws-sam-cli-managed-default-*", "arn:aws:s3:::aws-sam-cli-managed-default-*/*"]
+    },
+    {
+      "Sid": "StackRolesOnlyWithTheBoundary",
+      "Effect": "Allow",
+      "Action": ["iam:CreateRole", "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:AttachRolePolicy",
+                 "iam:DetachRolePolicy", "iam:PutRolePermissionsBoundary"],
+      "Resource": "arn:aws:iam::768580176216:role/airday-prod-*",
+      "Condition": {
+        "StringEquals": {"iam:PermissionsBoundary": "arn:aws:iam::768580176216:policy/airday-prod-boundary"}
+      }
+    },
+    {
+      "Sid": "StackRolesHousekeeping",
+      "Effect": "Allow",
+      "Action": ["iam:GetRole", "iam:GetRolePolicy", "iam:DeleteRole", "iam:UpdateRole", "iam:TagRole",
+                 "iam:UntagRole", "iam:UpdateAssumeRolePolicy", "iam:ListRolePolicies",
+                 "iam:ListAttachedRolePolicies", "iam:PassRole"],
+      "Resource": "arn:aws:iam::768580176216:role/airday-prod-*"
+    },
+    {
+      "Sid": "AppServices",
+      "Effect": "Allow",
+      "Action": ["lambda:*", "dynamodb:*", "sqs:*", "sns:*", "cognito-idp:*", "apigateway:*", "scheduler:*",
+                 "cloudwatch:*", "logs:*", "budgets:*", "xray:*"],
+      "Resource": "*",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": ["ap-south-1", "us-east-1"]}}
+    },
+    {
+      "Sid": "NeverReadSecretsOrLoosenTheBoundary",
+      "Effect": "Deny",
+      "Action": ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath", "kms:Decrypt",
+                 "secretsmanager:GetSecretValue", "iam:DeleteRolePermissionsBoundary",
+                 "iam:CreatePolicyVersion", "iam:DeletePolicy", "iam:SetDefaultPolicyVersion"],
+      "Resource": "*"
+    }
+  ]
+}
