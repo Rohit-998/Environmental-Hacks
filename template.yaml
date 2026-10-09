@@ -15,11 +15,7 @@ Parameters:
   DashboardUrl:
     Type: String
     Default: ""
-    Description: Amplify URL of the dashboard, linked from emails and used as the Cognito callback
-  CorsOrigins:
-    Type: String
-    Default: "http://localhost:3000"
-    Description: Comma-separated allowed origins (add the Amplify domain)
+    Description: Amplify URL of the dashboard. Linked from emails and allowed by CORS (with localhost:3000).
   DemoAdmin:
     Type: String
     Default: "true"
@@ -52,6 +48,7 @@ Parameters:
 
 Conditions:
   HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
+  HasDashboardUrl: !Not [!Equals [!Ref DashboardUrl, ""]]
 
 Globals:
   Function:
@@ -147,8 +144,11 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: $default
+      # An explicit list, not !Split: SAM mistranslates a Split here and API Gateway silently drops the CORS config.
       CorsConfiguration:
-        AllowOrigins: !Split [",", !Ref CorsOrigins]
+        AllowOrigins:
+          - http://localhost:3000
+          - !If [HasDashboardUrl, !Ref DashboardUrl, !Ref AWS::NoValue]
         AllowHeaders: [content-type, x-admin-key, authorization]
         AllowMethods: [GET, PUT, POST, OPTIONS]
       Auth:

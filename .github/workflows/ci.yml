@@ -96,5 +96,4 @@ jobs:
           Stage=prod
           SesSender=${{ vars.SES_SENDER }}
           DashboardUrl=${{ vars.DASHBOARD_URL }}
-          CorsOrigins=${{ vars.CORS_ORIGINS }}
           AlarmEmail=${{ vars.ALARM_EMAIL }}

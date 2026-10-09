@@ -67,7 +67,7 @@ Note the outputs: `ApiUrl`, `UserPoolId`, `UserPoolClientId`.
    Give it permissions to deploy the stack (CloudFormation, Lambda, IAM role creation for the stack, DynamoDB, SQS,
    SNS, Cognito, API Gateway, Scheduler, CloudWatch, S3 for the SAM artifact bucket).
 3. In the GitHub repo, create an environment named `prod` and set these repository variables:
-   `AWS_DEPLOY_ROLE_ARN`, `SES_SENDER`, `DASHBOARD_URL`, `CORS_ORIGINS`, `ALARM_EMAIL`.
+   `AWS_DEPLOY_ROLE_ARN`, `SES_SENDER`, `DASHBOARD_URL`, `ALARM_EMAIL`.
 
 From then on, every push to `main` that passes CI deploys. Without `AWS_DEPLOY_ROLE_ARN` the deploy job is skipped.
 
@@ -81,7 +81,7 @@ Connect the repo in Amplify Hosting. It reads `amplify.yml`. Set environment var
 | `NEXT_PUBLIC_COGNITO_USER_POOL_ID` | `UserPoolId` output |
 | `NEXT_PUBLIC_COGNITO_CLIENT_ID` | `UserPoolClientId` output |
 
-Then set the stack's `DashboardUrl` and add the Amplify domain to `CorsOrigins`, and redeploy.
+Then set `DASHBOARD_URL` in `backend/.env` to the Amplify URL and redeploy; it becomes the email link and the allowed CORS origin. In Amplify, set the platform to static (`aws amplify update-app --platform WEB` and branch framework `Next.js - SSG`), or the build fails looking for `required-server-files.json`.
 
 ## 7. Check it worked
 
