@@ -254,7 +254,8 @@ def build_brief(
             station, upstream["station"] = [], "unavailable"
         try:
             official, upstream["official"] = live_official(store, profile)
-        except sources.UpstreamError:
+        except sources.UpstreamError as e:
+            log.warning("official AQI unavailable: %s", e)
             official, upstream["official"] = Official(grap_override=profile.get("grapOverride")), "unavailable"
 
     st_hour = latest_fresh_station_hour(station, now) if station and now.date() == date else None

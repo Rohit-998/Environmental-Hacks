@@ -27,12 +27,13 @@ class UpstreamError(Exception):
     pass
 
 
-def _get_json(url: str, headers: dict[str, str] | None = None, retries: int = 1) -> Any:
+def _get_json(url: str, headers: dict[str, str] | None = None, retries: int = 1,
+              timeout: float = TIMEOUT_S) -> Any:
     req = urllib.request.Request(url, headers={"User-Agent": "AirDay/0.1", **(headers or {})})
     last: Exception | None = None
     for attempt in range(retries + 1):
         try:
-            with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
             last = e
@@ -114,7 +115,9 @@ def fetch_data_gov(api_key: str, city: str = "Delhi", limit: int = 1000) -> dict
     q = urllib.parse.urlencode({
         "api-key": api_key, "format": "json", "limit": limit, "filters[city]": city,
     })
-    return _get_json(f"{DATA_GOV_AQI}?{q}")
+    # data.gov.in is slow (often several seconds) and the result is cached for 30 minutes, so it gets more time.
+    # Kept under the 15 s API Lambda timeout together with the (usually cached) forecast and station calls.
+    return _get_json(f"{DATA_GOV_AQI}?{q}", timeout=8, retries=0)
 
 
 _POLLUTANT_KEYS = {"PM2.5": "PM2.5", "PM10": "PM10", "NO2": "NO2", "SO2": "SO2",
