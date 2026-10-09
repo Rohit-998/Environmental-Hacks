@@ -1,0 +1,30 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "WhatAirDayRolesMayEverDo",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:*",
+        "sqs:*",
+        "ses:SendEmail",
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "kms:Decrypt",
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream",
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "xray:PutTraceSegments",
+        "xray:PutTelemetryRecords",
+        "xray:GetSamplingRules",
+        "xray:GetSamplingTargets",
+        "xray:GetSamplingStatisticSummaries",
+        "cloudwatch:PutMetricData",
+        "lambda:InvokeFunction"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

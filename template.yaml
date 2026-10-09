@@ -58,6 +58,8 @@ Globals:
     # Prebuilt by backend/scripts/build_lambda.sh (Linux wheels, works on any host without Docker).
     CodeUri: backend/.build/app
     Layers: [!Ref DepsLayer]
+    # Caps what any function role can ever do, even if a deploy attaches a broader policy (docs/iam/).
+    PermissionsBoundary: !Sub arn:aws:iam::${AWS::AccountId}:policy/airday-${Stage}-boundary
     Tracing: Active
     LoggingConfig:
       LogFormat: JSON
@@ -298,6 +300,7 @@ Resources:
   SchedulerRole:
     Type: AWS::IAM::Role
     Properties:
+      PermissionsBoundary: !Sub arn:aws:iam::${AWS::AccountId}:policy/airday-${Stage}-boundary
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
