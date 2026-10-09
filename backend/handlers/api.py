@@ -28,6 +28,8 @@ def respond(event: dict, extra: dict | None = None) -> dict:
     status, out = api.route(http.get("method", "GET"), path, event.get("queryStringParameters") or {}, body,
                             event.get("headers") or {}, default_store(), extra=extra, claims=claims_of(event))
     obs.count(f"Http{status // 100}xx")
+    if out is None:  # e.g. a 204 CORS preflight: no body
+        return {"statusCode": status, "body": ""}
     return {
         "statusCode": status,
         "headers": {"content-type": "application/json; charset=utf-8"},

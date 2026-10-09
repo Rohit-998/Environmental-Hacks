@@ -63,6 +63,13 @@ def test_replay_endpoints():
     assert call(s, "GET", "/replay", {"date": "nope"})[0] == 400
 
 
+def test_cors_preflight_is_a_204_on_any_path():
+    s = MemoryStore()
+    assert call(s, "OPTIONS", "/replay/dates") == (204, None)
+    assert call(s, "OPTIONS", "/me/school")[0] == 204
+    assert call(s, "OPTIONS", "/does-not-exist")[0] == 204
+
+
 def test_evaluate_and_rules_and_errors():
     s = MemoryStore()
     status, body = call(s, "GET", "/evaluate",

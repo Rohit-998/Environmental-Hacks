@@ -271,6 +271,10 @@ def route(method: str, path: str, query: dict[str, str], body: str | None, heade
     routes = build_routes(extra)
     headers = {k.lower(): v for k, v in (headers or {}).items()}
     path = "/" + path.strip("/")
+    if method.upper() == "OPTIONS":
+        # CORS preflight. The catch-all ANY route forwards it here; API Gateway adds the CORS headers,
+        # and browsers need a 2xx status.
+        return 204, None
     fn = routes.get((method.upper(), path))
     if fn is None:
         if any(p == path for _, p in routes):

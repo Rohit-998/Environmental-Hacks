@@ -31,6 +31,13 @@ def test_api_handler_serves_demo_and_reads_jwt_claims():
     assert api.handler(http("/me"), CTX)["statusCode"] == 401
 
 
+def test_api_handler_answers_cors_preflight_with_empty_204():
+    from handlers import api
+
+    r = api.handler(http("/replay/dates", method="OPTIONS"), CTX)
+    assert r == {"statusCode": 204, "body": ""}
+
+
 def test_worker_handler_returns_partial_batch_response():
     from handlers import worker
 
