@@ -29,6 +29,7 @@ Open the [demo site](https://main.d2ji7br4eqzndl.amplifyapp.com). It opens on a 
 - Pick a **Replay** date (e.g. 19 Nov) from the *Plan from* menu to see a real **Severe** Delhi morning and how the
   plan changes hour by hour.
 - **Check an activity** — test any slot up to 2 days ahead against the same rules.
+- **Find a clear window** — ask "when can we hold sports day?" and AirDay scans the next 3 days for the hours when the air is clear enough, during school hours.
 - **Setup** — the school profile and the CSV timetable (demo admin key: `dev`).
 - **About** — the full rules table and the data behind every number.
 
