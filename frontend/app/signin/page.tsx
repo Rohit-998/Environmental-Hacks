@@ -33,13 +33,13 @@ export default function SignInPage() {
   if (!COGNITO_ENABLED) {
     return (
       <div className="mx-auto max-w-md space-y-4">
-        <h1 className="text-xl font-bold">Sign in (local dev)</h1>
+        <h1 className="text-[clamp(28px,3.4vw,42px)] font-bold leading-tight tracking-tight">Sign in (local dev)</h1>
         <p className="text-sm text-muted">
           Cognito isn&apos;t configured here, so you can sign in as a stand-in user. Each name is its own school. The
           deployed app uses real Cognito accounts.
         </p>
         <form
-          className="space-y-3 rounded-lg border border-line bg-white p-4"
+          className="space-y-3 card"
           onSubmit={(e) => {
             e.preventDefault();
             devSignIn(email || "principal");
@@ -63,10 +63,10 @@ export default function SignInPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-4">
-      <h1 className="text-xl font-bold">{step === "signup" ? "Create an account" : step === "confirm" ? "Check your email" : "Sign in"}</h1>
+      <h1 className="text-[clamp(28px,3.4vw,42px)] font-bold leading-tight tracking-tight">{step === "signup" ? "Create an account" : step === "confirm" ? "Check your email" : "Sign in"}</h1>
 
       <form
-        className="space-y-3 rounded-lg border border-line bg-white p-4"
+        className="space-y-3 card"
         onSubmit={(e) => {
           e.preventDefault();
           if (step === "signin")
@@ -120,7 +120,7 @@ export default function SignInPage() {
             {error}
           </p>
         )}
-        <button type="submit" disabled={busy} className="rounded bg-brand px-4 py-2 font-semibold text-white disabled:opacity-50">
+        <button type="submit" disabled={busy} className="btn btn-primary">
           {busy ? "Please wait…" : step === "signup" ? "Create account" : step === "confirm" ? "Confirm" : "Sign in"}
         </button>
       </form>

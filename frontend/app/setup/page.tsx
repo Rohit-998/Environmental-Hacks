@@ -25,7 +25,7 @@ function AdminKey({ onChange }: { onChange: (has: boolean) => void }) {
   }, [onChange]);
 
   return (
-    <section className="rounded-lg border border-line bg-white p-4">
+    <section className="card">
       <h2 className="font-semibold">Admin key</h2>
       {saved ? (
         <p className="mt-1 flex flex-wrap items-center gap-3 text-sm">
@@ -37,8 +37,8 @@ function AdminKey({ onChange }: { onChange: (has: boolean) => void }) {
       ) : (
         <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); setAdminKey(value.trim()); setSaved(true); onChange(true); setValue(""); }}>
           <label htmlFor="admin-key" className="sr-only">Admin key</label>
-          <input id="admin-key" type="password" autoComplete="off" value={value} onChange={(e) => setValue(e.target.value)} placeholder="Paste the admin key" className="min-w-0 flex-1 rounded border border-line px-3 py-2" />
-          <button type="submit" disabled={!value.trim()} className="rounded bg-brand px-4 py-2 font-semibold text-white disabled:opacity-50">Save</button>
+          <input id="admin-key" type="password" autoComplete="off" value={value} onChange={(e) => setValue(e.target.value)} placeholder="Paste the admin key" className="field mt-0 min-w-0 flex-1" />
+          <button type="submit" disabled={!value.trim()} className="btn btn-primary">Save</button>
         </form>
       )}
       <p className="mt-1 text-xs text-muted">Kept in this browser tab only and cleared when you close it.</p>
@@ -80,14 +80,14 @@ function ProfileForm({ canEdit }: { canEdit: boolean }) {
 
   const field = "mt-1 block w-full rounded border border-line px-2 py-1 disabled:bg-gray-50";
   return (
-    <form onSubmit={save} className="grid gap-3 rounded-lg border border-line bg-white p-4 sm:grid-cols-2">
+    <form onSubmit={save} className="grid gap-3 card sm:grid-cols-2">
       <h2 className="font-semibold sm:col-span-2">School</h2>
       <label className="text-sm sm:col-span-2">School name<input className={field} disabled={!canEdit} value={p.name} onChange={(e) => setP({ ...p, name: e.target.value })} required /></label>
       <div className="text-sm sm:col-span-2">
         <label htmlFor="place">Find your locality</label>
         <div className="mt-1 flex gap-2">
-          <input id="place" className="min-w-0 flex-1 rounded border border-line px-2 py-1" disabled={!canEdit} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="e.g. Rohini" />
-          <button type="button" disabled={!canEdit || !query.trim()} onClick={findPlace} className="rounded border border-line px-3 disabled:opacity-50">Find</button>
+          <input id="place" className="field mt-0 min-w-0 flex-1" disabled={!canEdit} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="e.g. Rohini" />
+          <button type="button" disabled={!canEdit || !query.trim()} onClick={findPlace} className="btn">Find</button>
         </div>
         <p className="mt-1 text-xs text-muted">Using: {p.locality} ({Number(p.lat).toFixed(3)}, {Number(p.lon).toFixed(3)}). The forecast covers the city area, so a nearby locality is enough.</p>
       </div>
@@ -110,7 +110,7 @@ function ProfileForm({ canEdit }: { canEdit: boolean }) {
       </label>
       {p.hasEmail && <EmailStatus status={p.emailStatus ?? null} canEdit={canEdit} onResent={setP} />}
       <div className="sm:col-span-2">
-        <button type="submit" disabled={!canEdit} className="rounded bg-brand px-4 py-2 font-semibold text-white disabled:opacity-50">Save school</button>
+        <button type="submit" disabled={!canEdit} className="btn btn-primary">Save school</button>
         {msg && <span role={msg.ok ? "status" : "alert"} className={`ml-3 text-sm ${msg.ok ? "text-green-800" : "text-red-800"}`}>{msg.text}</span>}
       </div>
     </form>
@@ -132,7 +132,7 @@ function EmailStatus({ status, canEdit, onResent }: { status: EmailStatusT; canE
     }
   }
   return (
-    <div role="status" className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 sm:col-span-2">
+    <div role="status" className="notice sm:col-span-2">
       {status === "pending" ? (
         <>
           <strong>Check your inbox.</strong> Amazon Web Services sent a verification link (subject starts &ldquo;Amazon Web
@@ -181,7 +181,7 @@ function Timetable({ canEdit }: { canEdit: boolean }) {
   }
 
   return (
-    <section className="space-y-3 rounded-lg border border-line bg-white p-4">
+    <section className="space-y-3 card">
       <h2 className="font-semibold">Outdoor timetable</h2>
       <p className="text-sm text-muted">
         One row per outdoor slot: <code>day,start,end,type,label</code>. Type is assembly, recess or pe. Paste from Excel or upload a CSV.
@@ -189,8 +189,8 @@ function Timetable({ canEdit }: { canEdit: boolean }) {
       <label htmlFor="csv" className="sr-only">Timetable CSV</label>
       <textarea id="csv" rows={6} disabled={!canEdit} value={csv} onChange={(e) => setCsv(e.target.value)} placeholder={"Mon,08:40,09:20,pe,Class 6B PE\nMon,10:30,10:50,recess,Recess"} className="w-full rounded border border-line p-2 font-mono text-sm disabled:bg-gray-50" />
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" disabled={!canEdit || !csv.trim()} onClick={() => upload(csv)} className="rounded bg-brand px-4 py-2 font-semibold text-white disabled:opacity-50">Save timetable</button>
-        <button type="button" disabled={!canEdit} onClick={useSample} className="rounded border border-line px-3 py-2 disabled:opacity-50">Use sample timetable</button>
+        <button type="button" disabled={!canEdit || !csv.trim()} onClick={() => upload(csv)} className="btn btn-primary">Save timetable</button>
+        <button type="button" disabled={!canEdit} onClick={useSample} className="btn">Use sample timetable</button>
         <label className={`rounded border border-line px-3 py-2 ${canEdit ? "cursor-pointer" : "opacity-50"}`}>
           Upload CSV
           <input type="file" accept=".csv,text/csv,text/plain" disabled={!canEdit} className="sr-only" onChange={(e) => onFile(e.target.files?.[0])} />
@@ -198,7 +198,7 @@ function Timetable({ canEdit }: { canEdit: boolean }) {
         <span role="status" className="text-sm text-green-800">{msg}</span>
       </div>
       {errors.length > 0 && (
-        <div role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+        <div role="alert" className="notice notice-error">
           <p className="font-semibold">Nothing was saved. Fix these rows and try again:</p>
           <ul className="mt-1 list-disc pl-5">
             {errors.map((e) => <li key={e.line}>Line {e.line}: {e.reason} <code className="text-xs">{e.row}</code></li>)}
@@ -246,24 +246,24 @@ function CreateSchool({ onCreated }: { onCreated: () => void }) {
   }
 
   return (
-    <form onSubmit={create} className="space-y-3 rounded-lg border border-line bg-white p-4">
+    <form onSubmit={create} className="space-y-3 card">
       <h2 className="font-semibold">Create your school</h2>
       <label className="block text-sm">
         School name
-        <input required className="mt-1 block w-full rounded border border-line px-2 py-1" value={name} onChange={(e) => setName(e.target.value)} />
+        <input required className="field" value={name} onChange={(e) => setName(e.target.value)} />
       </label>
       <div className="text-sm">
         <label htmlFor="new-place">Locality</label>
         <div className="mt-1 flex gap-2">
-          <input id="new-place" className="min-w-0 flex-1 rounded border border-line px-2 py-1" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="e.g. Dwarka" />
-          <button type="button" disabled={!query.trim()} onClick={findPlace} className="rounded border border-line px-3 disabled:opacity-50">
+          <input id="new-place" className="field mt-0 min-w-0 flex-1" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="e.g. Dwarka" />
+          <button type="button" disabled={!query.trim()} onClick={findPlace} className="btn">
             Find
           </button>
         </div>
         <p className="mt-1 text-xs text-muted">{place ? `Using ${place.locality}` : "Defaults to Rohini, Delhi if you skip this."}</p>
       </div>
       {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
-      <button type="submit" disabled={!name.trim()} className="rounded bg-brand px-4 py-2 font-semibold text-white disabled:opacity-50">
+      <button type="submit" disabled={!name.trim()} className="btn btn-primary">
         Create school
       </button>
     </form>
@@ -288,7 +288,7 @@ export default function SetupPage() {
   if (signedIn && me && !me.schoolId) {
     return (
       <div className="space-y-5">
-        <h1 className="text-xl font-bold">Setup</h1>
+        <h1 className="text-[clamp(28px,3.4vw,42px)] font-bold leading-tight tracking-tight">Setup</h1>
         <CreateSchool onCreated={() => setReload((n) => n + 1)} />
       </div>
     );
@@ -297,12 +297,12 @@ export default function SetupPage() {
   const canEdit = signedIn ? true : demoKey;
   return (
     <div className="space-y-5" key={reload}>
-      <h1 className="text-xl font-bold">Setup</h1>
+      <h1 className="text-[clamp(28px,3.4vw,42px)] font-bold leading-tight tracking-tight">Setup</h1>
       {signedIn ? (
         <p className="text-sm text-muted">Editing your school. Only you can see and change it.</p>
       ) : (
         <>
-          <p className="rounded-lg border border-line bg-white p-3 text-sm">
+          <p className="card text-sm">
             This is the shared demo school. <Link href="/signin/" className="underline">Sign in</Link> to set up your own.
           </p>
           <AdminKey onChange={setDemoKey} />

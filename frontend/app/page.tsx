@@ -1,35 +1,40 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BriefView } from "@/components/BriefView";
 import { Chat } from "@/components/Chat";
 import { api, ApiError } from "@/lib/api";
-import { formatDate, todayIST } from "@/lib/bands";
+import { shortDate, todayIST } from "@/lib/bands";
 import type { Brief } from "@/lib/types";
 
 export default function TodayPage() {
   const [dates, setDates] = useState<string[]>([]);
-  const [replay, setReplay] = useState<string>("");
+  // null until the URL has been read, so the first request is already for the right day.
+  const [replay, setReplay] = useState<string | null>(null);
   const [brief, setBrief] = useState<Brief | null>(null);
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const latest = useRef(0);
 
   useEffect(() => {
     api.replayDates().then((r) => setDates(r.dates)).catch(() => setDates([]));
-    const fromUrl = new URLSearchParams(window.location.search).get("replay");
-    if (fromUrl) setReplay(fromUrl);
+    setReplay(new URLSearchParams(window.location.search).get("replay") ?? "");
   }, []);
 
   const load = useCallback(async () => {
+    if (replay === null) return;
+    const id = ++latest.current; // a slower, older request must never overwrite a newer one
     setLoading(true);
     setError("");
     try {
-      setBrief(replay ? await api.replay(replay) : await api.briefLive(todayIST()));
+      const b = replay ? await api.replay(replay) : await api.briefLive(todayIST());
+      if (id === latest.current) setBrief(b);
     } catch (e) {
+      if (id !== latest.current) return;
       setBrief(null);
-      setError(e instanceof ApiError ? e.message : "Something went wrong loading today's plan.");
+      setError(e instanceof ApiError ? e.message : "Couldn't load the plan. Check your connection and try again.");
     } finally {
-      setLoading(false);
+      if (id === latest.current) setLoading(false);
     }
   }, [replay]);
 
@@ -46,34 +51,36 @@ export default function TodayPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <>
+      <header className="page-header">
         <div>
-          <p className="text-sm text-muted">Daily air plan</p>
-          <p className="font-semibold">{replay ? "Replay of a past day" : "Today, live"}</p>
+          <p className="eyebrow">DAILY AIR PLAN</p>
+          <h1>Today&apos;s plan</h1>
+          <p className="lede">AirDay checks the hourly air forecast against your outdoor timetable and tells you what to change before the first bell.</p>
         </div>
-        <label className="text-sm">
-          <span className="mr-2">View</span>
-          <select value={replay} onChange={(e) => pick(e.target.value)} className="rounded border border-line bg-white px-2 py-1">
-            <option value="">Today (live)</option>
-            {dates.map((d) => (
-              <option key={d} value={d}>
-                Replay: {formatDate(d)}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+        <div className="segmented shrink-0" role="group" aria-label="Which day">
+          <button type="button" aria-pressed={!replay} onClick={() => pick("")}>
+            Today
+          </button>
+          {dates.map((d) => (
+            <button key={d} type="button" aria-pressed={replay === d} onClick={() => pick(d)}>
+              {shortDate(d)}
+            </button>
+          ))}
+        </div>
+      </header>
 
       {loading && (
-        <p role="status" className="text-muted">
-          Loading the plan…
-        </p>
+        <div role="status" aria-label="Loading the plan" className="summary-grid">
+          <div className="skeleton h-[183px]" />
+          <div className="skeleton h-[183px]" />
+          <div className="skeleton h-[183px]" />
+        </div>
       )}
       {error && (
-        <div role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-red-800">
-          <p>{error}</p>
-          <button type="button" onClick={load} className="mt-2 text-sm underline">
+        <div role="alert" className="notice notice-error">
+          <span>{error}</span>
+          <button type="button" onClick={load} className="link ml-auto">
             Try again
           </button>
         </div>
@@ -84,6 +91,6 @@ export default function TodayPage() {
           <Chat date={brief.date} mode={brief.mode} />
         </>
       )}
-    </div>
+    </>
   );
 }

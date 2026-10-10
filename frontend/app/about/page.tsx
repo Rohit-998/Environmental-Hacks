@@ -25,9 +25,9 @@ export default function AboutPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">About the data and the rules</h1>
+      <h1 className="text-[clamp(28px,3.4vw,42px)] font-bold leading-tight tracking-tight">About the data and the rules</h1>
 
-      <section className="space-y-2 rounded-lg border border-line bg-white p-4">
+      <section className="space-y-2 card">
         <h2 className="font-semibold">Two different numbers</h2>
         <p>
           <strong>Hourly PM2.5 and PM10</strong> (µg/m³) drive every recommendation. They come from the CAMS forecast via
@@ -47,7 +47,7 @@ export default function AboutPage() {
         </p>
       </section>
 
-      <section className="rounded-lg border border-line bg-white p-4">
+      <section className="card">
         <h2 className="font-semibold">The rules {version && <span className="text-sm font-normal text-muted">(version {version})</span>}</h2>
         <p className="text-sm text-muted">The harder the activity, the earlier it is restricted: PE first, then recess, then assembly.</p>
         <div className="mt-3 overflow-x-auto">

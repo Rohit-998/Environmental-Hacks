@@ -52,13 +52,13 @@ export default function CheckPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-bold">Check an activity</h1>
+      <h1 className="text-[clamp(28px,3.4vw,42px)] font-bold leading-tight tracking-tight">Check an activity</h1>
       <p className="text-muted">Planning an event? Check it against the same rules as the morning plan, up to 2 days ahead.</p>
 
-      <form onSubmit={submit} className="grid gap-3 rounded-lg border border-line bg-white p-4 sm:grid-cols-2">
+      <form onSubmit={submit} className="grid gap-3 card sm:grid-cols-2">
         <label className="text-sm">
           Plan from
-          <select className="mt-1 block w-full rounded border border-line px-2 py-1" value={mode === "replay" ? base : ""} onChange={(e) => setContext(e.target.value)}>
+          <select className="field" value={mode === "replay" ? base : ""} onChange={(e) => setContext(e.target.value)}>
             <option value="">Today (live forecast)</option>
             {dates.map((d) => (
               <option key={d} value={d}>
@@ -69,7 +69,7 @@ export default function CheckPage() {
         </label>
         <label className="text-sm">
           Activity type
-          <select className="mt-1 block w-full rounded border border-line px-2 py-1" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+          <select className="field" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
             <option value="pe">PE, sports day, outdoor event</option>
             <option value="recess">Recess</option>
             <option value="assembly">Assembly</option>
@@ -77,7 +77,7 @@ export default function CheckPage() {
         </label>
         <label className="text-sm">
           Day
-          <select className="mt-1 block w-full rounded border border-line px-2 py-1" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })}>
+          <select className="field" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })}>
             {options.map((d, i) => (
               <option key={d} value={d}>
                 {i === 0 ? "Today" : i === 1 ? "Tomorrow" : "Day after"} ({d})
@@ -88,28 +88,28 @@ export default function CheckPage() {
         <div className="grid grid-cols-2 gap-2">
           <label className="text-sm">
             Start
-            <input type="time" required className="mt-1 block w-full rounded border border-line px-2 py-1" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} />
+            <input type="time" required className="field" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} />
           </label>
           <label className="text-sm">
             End
-            <input type="time" required className="mt-1 block w-full rounded border border-line px-2 py-1" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} />
+            <input type="time" required className="field" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} />
           </label>
         </div>
         <div className="sm:col-span-2">
-          <button type="submit" disabled={busy} className="rounded bg-brand px-4 py-2 font-semibold text-white disabled:opacity-50">
+          <button type="submit" disabled={busy} className="btn btn-primary">
             {busy ? "Checking…" : "Check"}
           </button>
         </div>
       </form>
 
       {error && (
-        <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-red-800">
+        <p role="alert" className="notice notice-error">
           {error}
         </p>
       )}
 
       {result && (
-        <section aria-live="polite" className="rounded-lg border border-line bg-white p-4">
+        <section aria-live="polite" className="card">
           <p className="flex flex-wrap items-center gap-2 text-lg font-semibold">
             <BandBadge band={result.band} name={result.bandName} size="lg" />
             {result.text}
