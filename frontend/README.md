@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AirDay — dashboard
 
-## Getting Started
+The Next.js dashboard for AirDay (App Router, TypeScript, static export for AWS Amplify Hosting).
 
-First, run the development server:
+See the [root README](../README.md) for what AirDay is, the live demo, the full AWS architecture, and how it all
+fits together. This file covers just the frontend.
+
+## Develop
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. By default the dev site talks to a local backend at `http://localhost:8000`
+(run `uv run python -m airday.devserver` in [`../backend`](../backend)); copy `.env.example` to
+`.env.development.local` to change that or to point at a deployed API.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Public config (baked into the static build at build time):
 
-## Learn More
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | Base URL of the HTTP API (the SAM `ApiUrl` output). |
+| `NEXT_PUBLIC_COGNITO_USER_POOL_ID` | Cognito user pool; leave empty to use the local stand-in sign-in. |
+| `NEXT_PUBLIC_COGNITO_CLIENT_ID` | Cognito app client ID. |
 
-To learn more about Next.js, take a look at the following resources:
+In Amplify these are set in the console; local values go in `.env.development.local` (gitignored).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Build
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run build
+```
 
-## Deploy on Vercel
+Produces a static export in `out/`, which Amplify serves (see [`../amplify.yml`](../amplify.yml)).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `npm run dev` — dev server
+- `npm run build` — static production export
+- `npm run lint` — ESLint
