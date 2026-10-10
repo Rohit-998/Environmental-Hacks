@@ -29,11 +29,12 @@ PLAN_DAYS = 2
 CHAT_SYSTEM = """You help a school principal in Delhi plan outdoor school activities around air pollution.
 Today is {today} ({weekday}). You can plan from {today} to {last}.
 Use the tools. Never guess air quality. To judge an activity, call evaluate_activity; treat events
-like sports day or excursions as type "pe". Use 24-hour HH:MM times.
+like sports day or excursions as type "pe". To find when the air is clear enough to hold an activity
+(e.g. "when can we do sports day?"), call find_safe_windows. Use 24-hour HH:MM times.
 Hourly values are PM2.5 concentrations in µg/m³. Never call an hourly number "AQI".
 Do not give medical advice. Keep answers to 2-4 short sentences in plain English.
-Reply with JSON only: {{"answer": "<text>", "ruleIds": ["<IDs from evaluate_activity>"]}}
-ruleIds must list the rule IDs returned by evaluate_activity that support the answer."""
+Reply with JSON only: {{"answer": "<text>", "ruleIds": ["<IDs from the tools>"]}}
+ruleIds must list the rule IDs the tools returned that support the answer."""
 
 TRANSLATE_SYSTEM = """Translate the school notice into simple Hindi in Devanagari script for parents.
 Keep every number and time exactly as written (you may use Devanagari digits). Output only the translation."""
@@ -168,10 +169,24 @@ class ToolBox:
         self.rule_ids.add(r["ruleId"])
         return {k: r[k] for k in ("type", "date", "start", "end", "bandName", "ruleId", "text", "hours")}
 
+    def find_safe_windows(self, type: str, duration_h: int = 2) -> dict:  # noqa: A002
+        """Find upcoming windows when the air is clear enough to hold an activity, within school hours
+        over the next few days. type: assembly, recess or pe (use pe for sports day or events).
+        duration_h: hours needed. Returns per-day clear windows, each with its band and rule ID."""
+        self._tick()
+        r = service.safe_windows(self.store, self.school_id, type, self.context,
+                                 days=PLAN_DAYS + 1, duration_h=duration_h, mode=self.mode)
+        for day in r["days"]:
+            for w in day["windows"]:
+                self.rule_ids.add(w["ruleId"])
+        if any(day["windows"] for day in r["days"]):
+            self.evaluated = True  # windows found: force the answer to cite them
+        return r
+
     def strands_tools(self) -> list:
         from strands import tool
 
-        return [tool(self.get_day), tool(self.evaluate_activity)]
+        return [tool(self.get_day), tool(self.evaluate_activity), tool(self.find_safe_windows)]
 
 
 # ---------------------------------------------------------------- chat

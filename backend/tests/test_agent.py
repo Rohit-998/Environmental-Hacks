@@ -60,6 +60,20 @@ def test_out_of_range_date_gets_fixed_reply():
     assert out["fixed"] and "2 days ahead" in out["answer"]
 
 
+def test_find_safe_windows_tool_grounds_the_answer():
+    """The planner tool gives the agent a real job: its window rule IDs count as grounding."""
+    def run(system, prompt, tools):
+        r = tools["find_safe_windows"](type="pe", duration_h=2)
+        ids = [w["ruleId"] for day in r["days"] for w in day["windows"]]
+        return json.dumps({"answer": "Here is when the air is clear enough.", "ruleIds": ids[:1]})
+
+    factory = lambda b: {"get_day": b.get_day, "evaluate_activity": b.evaluate_activity,  # noqa: E731
+                         "find_safe_windows": b.find_safe_windows}
+    out = agent.chat(MemoryStore(), "demo", "when can we hold sports day?", [], CTX, "replay",
+                     runner=run, tools_factory=factory)
+    assert out["grounded"]
+
+
 def test_medical_question_never_reaches_the_model():
     out = ask([], message="What inhaler dose should a child take?")
     assert out["fixed"] and "doctor" in out["answer"]
