@@ -80,3 +80,12 @@ def test_evaluate_and_rules_and_errors():
     assert call(s, "GET", "/rules")[1]["version"]
     assert call(s, "GET", "/nope")[0] == 404
     assert call(s, "DELETE", "/school")[0] == 405
+
+
+def test_windows_endpoint_returns_three_days():
+    s = MemoryStore()
+    status, body = call(s, "GET", "/windows",
+                        {"type": "pe", "date": "2025-11-19", "mode": "replay", "duration": "2"})
+    assert status == 200 and body["type"] == "pe" and len(body["days"]) == 3
+    assert body["days"][0]["windows"] == []  # Severe replay morning: no clear PE window
+    assert call(s, "GET", "/windows", {"type": "lunch", "date": "2025-11-19", "mode": "replay"})[0] == 400

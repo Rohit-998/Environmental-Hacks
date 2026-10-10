@@ -6,7 +6,8 @@ import jsonschema
 import pytest
 
 from airday import mailer, service
-from airday.engine import Reading
+from airday.engine import HourBand, Reading
+from airday.rules import load
 from airday.store import MemoryStore
 from airday.timeutil import IST
 
@@ -67,6 +68,44 @@ def test_station_freshness():
     assert service.latest_fresh_station_hour(st, now) == 7  # hour ended 08:00, 90 min ago
     late = dt.datetime(2025, 11, 19, 11, 30, tzinfo=IST)
     assert service.latest_fresh_station_hour(st, late) is None
+
+
+def _bands(spec):
+    """{hour: band} -> bands dict, for the pure window scan."""
+    return {h: HourBand(h, None, None, b, b) for h, b in spec.items()}
+
+
+def test_scan_windows_finds_clear_runs_and_breaks_on_bad_air():
+    rs = load()
+    hrs = list(range(8, 15))
+    spec = {8: "good", 9: "good", 10: "severe", 11: "severe", 12: "good", 13: "satisfactory", 14: "good"}
+    windows = service._scan_windows(rs, _bands(spec), hrs, "pe", 2, 8 * 60, 15 * 60)
+    assert [(w["start"], w["end"]) for w in windows] == [("08:00", "10:00"), ("12:00", "15:00")]
+    assert all(not rs.rule(w["band"], "pe").change for w in windows)  # only no-change bands are "clear"
+
+
+def test_scan_windows_respects_the_requested_duration():
+    rs = load()
+    hrs = list(range(8, 15))
+    spec = {8: "good", 9: "good", 10: "severe", 11: "severe", 12: "good", 13: "good", 14: "good"}
+    windows = service._scan_windows(rs, _bands(spec), hrs, "pe", 3, 8 * 60, 15 * 60)
+    assert [(w["start"], w["end"]) for w in windows] == [("12:00", "15:00")]  # the 2-hour run is too short
+
+
+def test_safe_windows_severe_replay_day_has_no_pe_window():
+    r = service.safe_windows(MemoryStore(), "demo", "pe", HERO, mode="replay")
+    assert r["type"] == "pe" and len(r["days"]) == 3
+    assert r["days"][0]["date"] == HERO.isoformat()
+    assert r["days"][0]["windows"] == []  # 19 Nov read Severe through the morning
+    rs = load()
+    for day in r["days"]:  # whatever surfaces on the later days must be a genuine no-change window
+        for w in day["windows"]:
+            assert not rs.rule(w["band"], "pe").change
+
+
+def test_safe_windows_rejects_a_bad_type():
+    with pytest.raises(ValueError):
+        service.safe_windows(MemoryStore(), "demo", "lunch", HERO, mode="replay")
 
 
 def test_live_brief_with_no_forecast_says_unavailable(monkeypatch):

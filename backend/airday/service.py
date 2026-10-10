@@ -20,7 +20,7 @@ from . import sources
 from . import timeutil as tu
 from .brief import Official, to_brief
 from .engine import Reading, build_plan, hourly_bands
-from .rules import RuleSet, load
+from .rules import UNKNOWN, RuleSet, load
 from .store import CACHE_PK, DEMO_SCHOOL, REGISTRY_PK, Store, school_pk
 from .validator import assert_valid
 
@@ -184,6 +184,12 @@ def latest_fresh_station_hour(station: list[Reading], now: dt.datetime) -> int |
     return h if age_min <= STATION_MAX_AGE_MIN else None
 
 
+def _bands_for_day(rs, forecast, station, now):
+    """Hourly bands for one day: the forecast, floored by the latest fresh station reading (if any)."""
+    st_hour = latest_fresh_station_hour(station, now) if station and now else None
+    return hourly_bands(rs, forecast, station, st_hour, escalation_hours=STATION_FLOOR_HOURS)
+
+
 # ---------------------------------------------------------------- replay fixtures
 
 def replay_dates() -> list[str]:
@@ -326,8 +332,7 @@ def evaluate(store: Store, school_id: str, typ: str, date: dt.date, start: str, 
             except sources.UpstreamError:
                 station = []
             now = tu.now_ist()
-    st_hour = latest_fresh_station_hour(station, now) if station and now else None
-    bands = hourly_bands(rs, forecast, station, st_hour, escalation_hours=STATION_FLOOR_HOURS)
+    bands = _bands_for_day(rs, forecast, station, now)
     hrs = tu.hours_overlapped(s, e)
     band = activity_band(rs, bands, hrs)
     rule = rs.rule(band, typ)
@@ -338,3 +343,91 @@ def evaluate(store: Store, school_id: str, typ: str, date: dt.date, start: str, 
         "hours": [{"hour": h, "pm25": bands[h].pm25 if h in bands else None,
                    "band": bands[h].band if h in bands else "unknown"} for h in hrs],
     }
+
+
+# ---------------------------------------------------------------- safe-window planner
+
+WINDOW_MAX_DAYS = 3  # today + 2, the horizon of the forecast fetch (live_forecast days=3)
+
+
+def _scan_windows(rs: RuleSet, bands: dict, school_hours: list[int], typ: str, duration_h: int,
+                  s_min: int, e_min: int) -> list[dict]:
+    """Maximal runs of school hours where `typ` needs no change (rule.change is False), at least
+    duration_h long. Unknown or restricted hours break a run. Each window reports its worst band."""
+    def clear(h: int) -> bool:
+        hb = bands.get(h)
+        return hb is not None and hb.band != UNKNOWN and not rs.rule(hb.band, typ).change
+
+    runs: list[list[int]] = []
+    cur: list[int] = []
+    for h in school_hours:
+        if clear(h):
+            cur.append(h)
+        elif cur:
+            runs.append(cur)
+            cur = []
+    if cur:
+        runs.append(cur)
+
+    out = []
+    for run in runs:
+        if len(run) < duration_h:
+            continue
+        worst = max((bands[h].band for h in run), key=rs.rank)
+        peak = max((bands[h].pm25 for h in run if bands[h].pm25 is not None), default=None)
+        out.append({
+            "start": tu.fmt_hhmm(max(run[0] * 60, s_min)), "end": tu.fmt_hhmm(min((run[-1] + 1) * 60, e_min)),
+            "band": worst, "bandName": rs.name(worst), "ruleId": rs.rule(worst, typ).id,
+            "peakPm25": peak, "hours": run,
+        })
+    return out
+
+
+def safe_windows(store: Store, school_id: str, typ: str, start_date: dt.date, days: int = WINDOW_MAX_DAYS,
+                 duration_h: int = 2, mode: str = "live", rs: RuleSet | None = None) -> dict:
+    """The inverse of evaluate: 'when is the air clear enough to hold this activity?'
+
+    Scans the next `days` days (capped at the forecast horizon) for contiguous windows within school hours
+    where `typ` needs no change, using the same bands and rules as the morning plan. Read-only; it never
+    stores or emails anything.
+    """
+    rs = rs or load()
+    if typ not in ("assembly", "recess", "pe"):
+        raise ValueError("type must be assembly, recess or pe")
+    days = max(1, min(int(days), WINDOW_MAX_DAYS))
+    duration_h = max(1, min(int(duration_h), 8))
+    profile = get_profile(store, school_id)
+    s_min, e_min = tu.parse_hhmm(profile["start"]), tu.parse_hhmm(profile["end"])
+    school_hours = tu.hours_overlapped(s_min, e_min)
+
+    # One forecast fetch covers the whole window (shared cache); station data belongs to a single day.
+    station_by_day: dict[str, list[Reading]] = {}
+    now_by_day: dict[str, dt.datetime] = {}
+    if mode == "replay":
+        fx = load_fixture_containing(start_date)
+        forecast_by_day = sources.parse_open_meteo(fx["openMeteo"])
+        station_by_day[fx["date"]] = [r for r in _fixture_station(fx) if r.hour < 6]
+        now_by_day[fx["date"]] = dt.datetime.combine(dt.date.fromisoformat(fx["date"]), dt.time(6, 0), tu.IST)
+    else:
+        today = tu.now_ist().date()
+        forecast_by_day, _ = live_forecast(store, profile, today)
+        try:
+            station_by_day[today.isoformat()], _ = live_station(store, profile, today)
+        except sources.UpstreamError:
+            pass
+        now_by_day[today.isoformat()] = tu.now_ist()
+
+    out_days = []
+    for i in range(days):
+        d = start_date + dt.timedelta(days=i)
+        iso = d.isoformat()
+        bands = _bands_for_day(rs, forecast_by_day.get(iso, []), station_by_day.get(iso, []), now_by_day.get(iso))
+        out_days.append({
+            "date": iso,
+            "weekday": tu.weekday(d),
+            "schoolDay": schoolmod.is_school_day(profile, d),
+            "hasForecast": any(h in bands and bands[h].band != UNKNOWN for h in school_hours),
+            "windows": _scan_windows(rs, bands, school_hours, typ, duration_h, s_min, e_min),
+        })
+    return {"type": typ, "durationH": duration_h, "schoolStart": profile["start"],
+            "schoolEnd": profile["end"], "days": out_days}

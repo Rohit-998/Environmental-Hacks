@@ -254,6 +254,18 @@ def get_evaluate(store, p, q, body, headers) -> Response:
         raise HttpError(400, str(e).strip("'")) from None
 
 
+def get_windows(store, p, q, body, headers) -> Response:
+    sid = require_school(p)
+    date = _date(q, default=tu.now_ist().date())
+    try:
+        return 200, service.safe_windows(
+            store, sid, q.get("type", "pe"), date,
+            days=int(q.get("days", "3")), duration_h=int(q.get("duration", "2")),
+            mode=q.get("mode", "live"))
+    except (ValueError, KeyError) as e:
+        raise HttpError(400, str(e).strip("'")) from None
+
+
 def get_rules(store, p, q, body, headers) -> Response:
     rs = load()
     return 200, {"version": rs.version, "bands": {"order": rs.order, "names": rs.names,
@@ -278,6 +290,7 @@ TENANT_ROUTES: dict[tuple[str, str], Handler] = {
     ("GET", "/replay"): get_replay,
     ("POST", "/replay/email"): post_replay_email,
     ("GET", "/evaluate"): get_evaluate,
+    ("GET", "/windows"): get_windows,
 }
 PUBLIC_ROUTES: dict[tuple[str, str], Handler] = {
     ("GET", "/health"): get_health,
