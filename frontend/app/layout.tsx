@@ -1,55 +1,36 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
-import { AccountMenu } from "@/components/AccountMenu";
+import { DM_Mono, Manrope } from "next/font/google";
+import { Rail } from "@/components/Rail";
 import "./globals.css";
 
+const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope", display: "swap" });
+const dmMono = DM_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-dm-mono", display: "swap" });
+
 export const metadata: Metadata = {
-  title: "AirDay · Daily air plan for your school",
-  description: "Turns the hourly air-pollution forecast into a period-by-period plan for a school timetable.",
+  title: "AirDay · Today's air plan for your school",
+  description: "Turns the hourly air-pollution forecast into a period-by-period plan for a school's timetable.",
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1 };
-
-const NAV = [
-  { href: "/", label: "Today" },
-  { href: "/check/", label: "Check an activity" },
-  { href: "/setup/", label: "Setup" },
-  { href: "/about/", label: "About the data" },
-];
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#f5f7f5" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className="min-h-screen antialiased">
-        <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:bg-white focus:p-2">
+    <html lang="en" className={`${manrope.variable} ${dmMono.variable}`}>
+      <body className="min-h-screen">
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-brand focus:px-3 focus:py-2 focus:text-white"
+        >
           Skip to content
         </a>
-        <header className="border-b border-line bg-white">
-          <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-2 px-4 py-3">
-            <Link href="/" className="text-lg font-bold text-brand">
-              AirDay
-            </Link>
-            <nav aria-label="Main" className="flex flex-wrap items-center gap-2">
-              <ul className="flex flex-wrap gap-1 text-sm">
-                {NAV.map((n) => (
-                  <li key={n.href}>
-                    <Link href={n.href} className="rounded px-2 py-1 text-ink hover:bg-gray-100">
-                      {n.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-              <AccountMenu />
-            </nav>
-          </div>
-        </header>
-        <main id="main" className="mx-auto max-w-4xl px-4 py-6">
+        <Rail />
+        <main id="main" className="workspace">
           {children}
+          <footer className="mt-14 border-t border-line pt-5 text-[12px] text-muted">
+            Forecast: CAMS via Open-Meteo, a city-area forecast at about 40 km. Station readings: OpenAQ and CPCB.
+            Official AQI: CPCB. General guidance based on public advisories, not medical advice.
+          </footer>
         </main>
-        <footer className="mx-auto max-w-4xl px-4 pb-8 text-xs text-muted">
-          Forecast: CAMS via Open-Meteo (city-area, about 40 km). Station data: OpenAQ / CPCB. Official AQI: CPCB via
-          data.gov.in. General guidance based on public advisories, not medical advice.
-        </footer>
       </body>
     </html>
   );

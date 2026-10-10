@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { LogIn, LogOut } from "lucide-react";
 import { currentSession, onSessionChange, signOut, type Session } from "@/lib/session";
 
 export function AccountMenu() {
@@ -16,26 +17,26 @@ export function AccountMenu() {
   if (!s) return null;
   if (!s.signedIn) {
     return (
-      <Link href="/signin/" className="rounded border border-brand px-2 py-1 text-sm font-semibold text-brand hover:bg-brand hover:text-white">
-        Sign in
+      <Link href="/signin/" className="btn btn-primary w-full">
+        <LogIn aria-hidden="true" /> Sign in
       </Link>
     );
   }
   return (
-    <span className="flex items-center gap-2 text-sm">
-      <span className="max-w-[12rem] truncate text-muted" title={s.label}>
+    <div className="grid gap-1.5">
+      <span className="truncate font-semibold text-ink" title={s.label}>
         {s.label}
       </span>
       <button
         type="button"
-        className="underline"
+        className="flex items-center gap-1.5 text-left text-[12px] text-muted hover:text-ink"
         onClick={async () => {
           await signOut();
           window.location.href = "/";
         }}
       >
-        Sign out
+        <LogOut size={14} aria-hidden="true" /> Sign out
       </button>
-    </span>
+    </div>
   );
 }
