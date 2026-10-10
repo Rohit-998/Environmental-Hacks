@@ -1,81 +1,94 @@
 "use client";
 
 import { useState } from "react";
-import { BAND_STYLE, hh } from "@/lib/bands";
+import { bandColor, hh } from "@/lib/bands";
 import type { HourBand } from "@/lib/types";
 
-// Bar height is capped at 300 µg/m³ so a Severe hour doesn't flatten the rest.
+// Column height is capped at 300 µg/m³ so a Severe hour doesn't flatten the rest.
 const MAX = 300;
 
 export function HourStrip({ hours, from = 7, to = 14 }: { hours: HourBand[]; from?: number; to?: number }) {
   const [asTable, setAsTable] = useState(false);
   const shown = hours.filter((h) => h.hour >= from && h.hour <= to);
-  if (!shown.length) return <p className="text-sm text-muted">No hourly data for school hours.</p>;
+  if (!shown.length) return null;
+  const anyEscalated = shown.some((h) => h.escalated);
+  // The reading that raised the day: the latest station hour before school with data.
+  const trigger = [...hours].reverse().find((h) => h.hour < from && h.stationPm25 != null);
 
   return (
-    <section aria-labelledby="hours-title" className="rounded-lg border border-line bg-white p-4">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="hours-title" className="text-base font-semibold">
-          Hour by hour (PM2.5, µg/m³, city-area forecast)
-        </h2>
-        <button type="button" onClick={() => setAsTable(!asTable)} className="text-sm text-brand underline" aria-pressed={asTable}>
-          {asTable ? "Show chart" : "Show as table"}
-        </button>
+    <section className="section" aria-labelledby="hours-title">
+      <div className="section-title">
+        <div>
+          <p className="eyebrow">PM2.5 · µg/m³ · CITY-AREA FORECAST</p>
+          <h2 id="hours-title">The school day, hour by hour</h2>
+          <p className="section-copy">Hourly concentrations, not AQI. Timing is approximate.</p>
+        </div>
+        <div className="segmented" role="group" aria-label="View">
+          <button type="button" aria-pressed={!asTable} onClick={() => setAsTable(false)}>
+            Chart
+          </button>
+          <button type="button" aria-pressed={asTable} onClick={() => setAsTable(true)}>
+            Table
+          </button>
+        </div>
       </div>
 
-      {asTable ? (
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-line">
-              <th scope="col" className="py-1">Hour</th>
-              <th scope="col">Forecast PM2.5</th>
-              <th scope="col">Station PM2.5</th>
-              <th scope="col">Band used</th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((h) => (
-              <tr key={h.hour} className="border-b border-line last:border-0">
-                <td className="py-1">{hh(h.hour)}</td>
-                <td>{h.pm25 ?? "–"}</td>
-                <td>{h.stationPm25 ?? "–"}</td>
-                <td>
-                  {h.bandName}
-                  {h.escalated && " (escalated from station reading)"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <ol className="grid gap-1" style={{ gridTemplateColumns: `repeat(${shown.length}, minmax(0, 1fr))` }} aria-label="Hourly PM2.5">
-          {shown.map((h) => {
-            const s = BAND_STYLE[h.band] ?? BAND_STYLE.unknown;
-            const pct = h.pm25 == null ? 6 : Math.max(6, Math.min(100, (h.pm25 / MAX) * 100));
-            const station = h.stationPm25 == null ? null : Math.min(100, (h.stationPm25 / MAX) * 100);
-            return (
-              <li key={h.hour} className="flex flex-col items-center text-center">
-                <div className="relative flex h-28 w-full items-end justify-center rounded bg-gray-50" aria-hidden="true">
-                  <div className={`w-3/4 rounded-t ${s.bar}`} style={{ height: `${pct}%` }} />
-                  {station != null && (
-                    <div className="absolute left-1 right-1 border-t-2 border-dashed border-ink" style={{ bottom: `${station}%` }} />
-                  )}
-                </div>
-                <span className="mt-1 text-xs font-semibold">{h.pm25 == null ? "–" : Math.round(h.pm25)}</span>
-                <span className={`text-[11px] leading-tight ${s.text}`}>
-                  {h.bandName}
-                  {h.escalated ? "*" : ""}
-                </span>
-                <span className="text-[11px] text-muted">{hh(h.hour)}</span>
-              </li>
-            );
-          })}
-        </ol>
-      )}
-      <p className="mt-2 text-xs text-muted">
-        Dashed line: nearest station reading. * Band raised because the station reading was worse than the forecast. Hourly
-        values are concentrations, not AQI. Timing is approximate.
-      </p>
+      <div className="card">
+        {asTable ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[30rem] text-left text-[13px]">
+              <thead className="font-mono text-[10px] tracking-wider text-muted">
+                <tr className="border-b border-line">
+                  <th scope="col" className="py-2 font-normal">HOUR</th>
+                  <th scope="col" className="font-normal">FORECAST</th>
+                  <th scope="col" className="font-normal">STATION</th>
+                  <th scope="col" className="font-normal">BAND USED</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((h) => (
+                  <tr key={h.hour} className="border-b border-line last:border-0">
+                    <td className="py-2.5 font-mono">{hh(h.hour)}</td>
+                    <td>{h.pm25 == null ? "–" : Math.round(h.pm25)}</td>
+                    <td>{h.stationPm25 == null ? "–" : Math.round(h.stationPm25)}</td>
+                    <td>
+                      {h.bandName}
+                      {h.escalated && <span className="text-muted"> (raised by the station reading)</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <ol className="grid gap-2" style={{ gridTemplateColumns: `repeat(${shown.length}, minmax(0, 1fr))` }} aria-label="Hourly PM2.5">
+            {shown.map((h) => {
+              const c = bandColor(h.band);
+              const value = h.stationPm25 ?? h.pm25;
+              const pct = value == null ? 4 : Math.max(5, Math.min(100, (value / MAX) * 100));
+              return (
+                <li key={h.hour} className="flex min-w-0 flex-col text-center">
+                  <div className="relative h-40 overflow-hidden rounded-md bg-[#f1f5f2]" aria-hidden="true">
+                    <div className="absolute inset-x-0 bottom-0 rounded-t-md" style={{ height: `${pct}%`, background: `color-mix(in srgb, ${c} 75%, white)` }} />
+                  </div>
+                  <span className="mt-2 text-[14px] font-bold">{value == null ? "–" : Math.round(value)}</span>
+                  <span className="truncate text-[11px] font-bold" style={{ color: c }}>
+                    {h.bandName}
+                  </span>
+                  <span className="font-mono text-[11px] text-muted">{hh(h.hour)}</span>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+        {anyEscalated && (
+          <p className="mt-4 border-t border-line pt-3 text-[12px] text-muted">
+            {trigger
+              ? `Numbers are the forecast. The nearest station measured ${Math.round(trigger.stationPm25!)} µg/m³ at ${hh(trigger.hour)}, worse than forecast, so the plan treats the rest of the day as ${trigger.bandName}. Forecasts tend to read clean in a Delhi winter.`
+              : "The nearest station read worse than the forecast before school, so the plan uses the station's band for the rest of the day."}
+          </p>
+        )}
+      </div>
     </section>
   );
 }
