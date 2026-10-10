@@ -195,7 +195,7 @@ Pushing to `main` then runs CI and, once the `AWS_DEPLOY_ROLE_ARN` variable is s
 - [docs/architecture.md](docs/architecture.md) — system design, data model, reliability, security, cost, scaling.
 - [docs/adr/](docs/adr/) — the key design decisions, one short record each.
 
-Hackathon submission; no formal open-source license yet.
+Hackathon submission, released under the [MIT License](LICENSE).
 
 
 
