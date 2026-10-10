@@ -34,7 +34,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Access-Control-Allow-Origin", ALLOWED_ORIGIN)
+        # Local dev only: any localhost port may call the dev API (the preview tool can pick a free port).
+        origin = self.headers.get("Origin", "")
+        allowed = origin if origin.startswith(("http://localhost:", "http://127.0.0.1:")) else ALLOWED_ORIGIN
+        self.send_header("Access-Control-Allow-Origin", allowed)
         self.send_header("Access-Control-Allow-Headers", "content-type, x-admin-key, x-dev-user, authorization")
         self.send_header("Access-Control-Allow-Methods", "GET, PUT, POST, OPTIONS")
         self.end_headers()
