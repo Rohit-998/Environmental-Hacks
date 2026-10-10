@@ -1,5 +1,5 @@
 import { authHeaders } from "./session";
-import type { ActivityRow, Brief, ChatReply, Evaluation, Me, Profile, Rule, RowError } from "./types";
+import type { ActivityRow, Brief, ChatReply, Evaluation, Me, Profile, Rule, RowError, SafeWindows } from "./types";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 const KEY_STORAGE = "airday-admin-key";
@@ -90,6 +90,8 @@ export const api = {
   emailReplay: (date: string) => request<{ sent: boolean }>("POST", `/replay/email${q({ date })}`, T),
   evaluate: (p: { type: string; date: string; start: string; end: string; mode: string }) =>
     request<Evaluation>("GET", `/evaluate${q(p)}`, T),
+  safeWindows: (p: { type: string; date: string; duration: string; mode: string; days?: string }) =>
+    request<SafeWindows>("GET", `/windows${q(p)}`, T),
   chat: (p: { message: string; history: { role: string; content: string }[]; date: string; mode: string }) =>
     request<ChatReply>("POST", "/chat", { ...T, body: p }),
   translate: (text: string) =>

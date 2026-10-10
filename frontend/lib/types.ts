@@ -142,3 +142,29 @@ export interface Rule {
   optional: boolean;
   instruction: string | null;
 }
+
+export interface SafeWindow {
+  start: string;
+  end: string;
+  band: Band;
+  bandName: string;
+  ruleId: string;
+  peakPm25: number | null;
+  hours: number[];
+}
+
+export interface SafeWindowDay {
+  date: string;
+  weekday: string;
+  schoolDay: boolean;
+  hasForecast: boolean;
+  windows: SafeWindow[];
+}
+
+export interface SafeWindows {
+  type: string;
+  durationH: number;
+  schoolStart: string;
+  schoolEnd: string;
+  days: SafeWindowDay[];
+}
