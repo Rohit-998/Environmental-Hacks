@@ -71,6 +71,10 @@ air, turned into a plan a school can act on. Thanks for watching."
 
 ## Notes
 
+- **Don't sign in on camera.** The whole demo runs on the public demo school, no login. Live Cognito sign-up sends
+  an email confirmation code — a guaranteed on-camera stall. The closing line already credits Cognito multi-tenancy
+  ("each principal to their own school"); if you want to show it, flash the **/signin** page for ~2 seconds during
+  that line — don't actually log in. (The live sign-in works, verified; you just don't need it here.)
 - If live air is clean and the window finder shows mostly "Moderate" windows, that's fine — it proves the positive
   case. The replay segment already carries the dramatic "all red" moment.
 - Keep the whole thing under 3:00; the Rules require ≤3 minutes. If you run long, trim the Today segment (0:15–0:40)
