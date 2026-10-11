@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, ApiError, getAdminKey, setAdminKey } from "@/lib/api";
+import { todayIST } from "@/lib/bands";
 import { currentSession } from "@/lib/session";
 import type { ActivityRow, EmailStatus as EmailStatusT, Me, Profile, RowError } from "@/lib/types";
 
@@ -61,9 +62,12 @@ function ProfileForm({ canEdit }: { canEdit: boolean }) {
     setMsg(null);
     try {
       const patch = { name: p.name, locality: p.locality, lat: Number(p.lat), lon: Number(p.lon), start: p.start, end: p.end, schoolDays: p.schoolDays, ...(email ? { principalEmail: email } : {}) };
+      const emailSet = !!email;
       setP(await api.updateSchool(patch));
       setEmail("");
-      setMsg({ ok: true, text: "Saved." });
+      setMsg({ ok: true, text: emailSet
+        ? "Saved. Check your inbox (and spam) for the AWS verification link — click it once to start the 06:00 plan."
+        : "Saved." });
     } catch (err) {
       const errs = err instanceof ApiError ? (err.body.errors as string[] | undefined) : undefined;
       setMsg({ ok: false, text: errs?.join("; ") || (err instanceof Error ? err.message : "Save failed") });
@@ -120,9 +124,9 @@ function ProfileForm({ canEdit }: { canEdit: boolean }) {
 // While AirDay's AWS account is in the SES sandbox, AWS only delivers to addresses that clicked its verification link.
 function EmailStatus({ status, canEdit, onResent }: { status: EmailStatusT; canEdit: boolean; onResent: (p: Profile) => void }) {
   const [busy, setBusy] = useState(false);
-  if (status === "verified" || status === "not-checked" || status === null) {
-    return status === "verified" ? <p role="status" className="text-sm text-green-800 sm:col-span-2">Email confirmed. The 06:00 plan will arrive here.</p> : null;
-  }
+  const [sending, setSending] = useState(false);
+  const [sendMsg, setSendMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
   async function resend() {
     setBusy(true);
     try {
@@ -131,13 +135,42 @@ function EmailStatus({ status, canEdit, onResent }: { status: EmailStatusT; canE
       setBusy(false);
     }
   }
+
+  // Verified: offer a "send now" so judges (and principals) can see the plan email without waiting for 06:00.
+  async function sendNow() {
+    setSending(true);
+    setSendMsg(null);
+    try {
+      await api.regenerate(todayIST(), true);
+      setSendMsg({ ok: true, text: "Sent — check your inbox (and spam)." });
+    } catch (err) {
+      setSendMsg({ ok: false, text: err instanceof Error ? err.message : "Couldn't send right now." });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  if (status === "verified") {
+    return (
+      <div role="status" className="text-sm text-green-800 sm:col-span-2">
+        Email confirmed. The 06:00 plan will arrive here.
+        <button type="button" disabled={!canEdit || sending} onClick={sendNow} className="ml-2 underline disabled:opacity-50">
+          {sending ? "Sending…" : "Send me today's plan now"}
+        </button>
+        {sendMsg && <span className={`ml-2 ${sendMsg.ok ? "text-green-800" : "text-red-800"}`}>{sendMsg.text}</span>}
+      </div>
+    );
+  }
+  if (status === "not-checked" || status === null) return null;
+
   return (
     <div role="status" className="notice sm:col-span-2">
       {status === "pending" ? (
         <>
-          <strong>Check your inbox.</strong> Amazon Web Services sent a verification link (subject starts &ldquo;Amazon Web
-          Services – Email Address Verification Request&rdquo;). Click it once, and the 06:00 plan starts arriving. Look in
-          spam if you don&apos;t see it.
+          <strong>Check your inbox (and spam).</strong> While AirDay&apos;s AWS account is in the SES sandbox, the daily
+          plan can only reach an address that has confirmed it. Amazon Web Services sent a verification link (subject
+          starts &ldquo;Amazon Web Services – Email Address Verification Request&rdquo;). Click it once, and the 06:00
+          plan starts arriving.
         </>
       ) : (
         <>The verification link expired or failed. Send a new one and click it within 24 hours.</>
