@@ -25,9 +25,9 @@ air, today, period by period."
 
 **Show:** the morning plan and the hourly chart.
 
-**Say:** "This is a school's morning plan. AirDay takes the hourly pollution forecast for the school's locality and
-walks its real timetable — assembly, recess, PE. Today the air is moderate, so everything runs as normal. The
-chart is hourly PM2.5 — real concentrations, which AirDay never calls 'AQI', because AQI is a daily average."
+**Say:** "This is a school's live morning plan. AirDay takes the hourly pollution forecast for the school's
+locality and walks its real timetable — assembly, recess, PE — and tells the principal what to do with each. The
+chart is hourly PM2.5: real concentrations, which AirDay never calls 'AQI', because AQI is a daily average."
 
 ## 0:40 – 1:20 · Replay a Severe day (the core)
 
