@@ -196,6 +196,15 @@ Resources:
         Public:
           Type: HttpApi
           Properties: {ApiId: !Ref HttpApi, Path: "/{proxy+}", Method: ANY}
+        # Explicit OPTIONS routes with no authorizer: a CORS preflight carries no Authorization header, so on an
+        # ANY+Cognito route it would hit the authorizer and return 401 (browsers reject any non-2xx preflight).
+        # These send preflight to the Lambda instead, which returns 204. Actual GET/PUT/POST still hit the authed routes.
+        MeOptions:
+          Type: HttpApi
+          Properties: {ApiId: !Ref HttpApi, Path: /me, Method: OPTIONS}
+        MeProxyOptions:
+          Type: HttpApi
+          Properties: {ApiId: !Ref HttpApi, Path: "/me/{proxy+}", Method: OPTIONS}
         Me:
           Type: HttpApi
           Properties: {ApiId: !Ref HttpApi, Path: /me, Method: GET, Auth: {Authorizer: Cognito}}
