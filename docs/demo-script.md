@@ -41,7 +41,6 @@ peaks around 187, deep in the Severe range. Assembly — hold indoors. Recess �
 cancelled, moved into a classroom. Every line names the rule behind it, traceable to a CPCB health source, and
 the parent note is already written, English and Hindi. The principal gets all of this by email at 6 a.m., before
 anyone leaves home."
-<!-- MORE -->
 
 ### ⏱ 1:45–2:15 · Find a clear window
 **OPEN:** left nav → **Check an activity** → scroll to **Find a clear window**. Leave "Plan from" on **Today**.
