@@ -1,83 +1,74 @@
-# AirDay — demo video script (≤3 min)
+# AirDay — demo video script (final · ≤3 min)
 
-Target: **2:45**. Narration is word-for-word; "Show" is what to have on screen. Speak at a steady pace
-(~150 words/min). Record the screen in the browser at 1280×800+; a plain voiceover is fine.
+Target **2:45**. Narration is word-for-word; **OPEN** = what's on screen. Speak ~150 words/min.
 
-## Before you record
+## The setup (lock these in)
 
-- Open the live site: https://main.d2ji7br4eqzndl.amplifyapp.com
-- Make sure `DEMO_ADMIN` is on (so the demo school works on camera) — leave the admin key handy if needed.
-- Have two tabs ready: **Today** and **Check an activity**.
-- Know your replay date: **2025-11-19** (a Severe Delhi morning).
-- Do one dry run of the "Find a clear window" and the assistant question so there's no waiting on camera.
+- **Record the LIVE site:** https://main.d2ji7br4eqzndl.amplifyapp.com
+- **Stay on the public demo school — do NOT sign in** (live sign-up sends an email code; it's a guaranteed stall).
+- **Replay day = Wed, 19 Nov** (Severe, AQI 374 — the dramatic one). You switch to it mid-video.
+- Tabs ready: **Today's plan** and **Check an activity**. Confirm the top-left "API status" reads **Operational**.
+- Do one silent dry-run of: the chat question, the "Plan from → Wed, 19 Nov" switch, and the window finder.
 
 ---
 
-## 0:00 – 0:15 · Hook
+## Timeline
 
-**Show:** the Today page, scrolled to the top.
+### ⏱ 0:00–0:12 · Hook
+**OPEN:** Today's plan page (as it loads, live).
+**SAY:** "A Delhi winter morning can turn hazardous before the first bell — but the AQI everyone checks is a
+24-hour average that lags the morning. This is AirDay: it tells a school what to do about the air, today,
+period by period."
 
-**Say:** "On a Delhi winter morning, the air can be hazardous before the first bell — but the one number everyone
-checks, the AQI, is a 24-hour average that lags the morning. This is AirDay. It tells a school what to do about the
-air, today, period by period."
+### ⏱ 0:12–0:40 · It's live right now
+**OPEN:** stay on Today's plan (it's a Sunday — the "not a school day" banner and the hourly chart are visible).
+**SAY:** "This is running live. Today's a Sunday, so AirDay knows there's no school and sends nothing — it only
+emails on school mornings. But you can still see the live picture: hourly PM2.5 for the school's area, in the
+moderate range today, hour by hour. Real concentrations — AirDay never calls an hourly number 'AQI', because AQI
+is a daily average."
 
-## 0:15 – 0:40 · Today
+### ⏱ 0:40–1:05 · The assistant
+**OPEN:** scroll down to the chat box on the Today page. Type: **When can we hold sports day this week?**
+**SAY:** "There's an assistant for planning. I'll ask in plain English — when can we hold sports day this week? It
+calls the same rules engine and answers with the clear windows, and it can only cite rules the engine actually
+returned, so it can't invent a number about the air."
 
-**Show:** the morning plan and the hourly chart.
+### ⏱ 1:05–1:45 · Replay a real Severe day (the peak)
+**OPEN:** top-right "Plan from" → **Wed, 19 Nov**. Let the red plan load; scroll the activity rows, then the note.
+**SAY:** "Now the day that matters. I switch to the 19th of November — a Severe Delhi morning, frozen with the
+real forecast, a real station reading, and the official CPCB bulletin: AQI 374. Watch the plan go red. PM2.5
+peaks around 187, deep in the Severe range. Assembly — hold indoors. Recess — hold indoors. Both PE periods —
+cancelled, moved into a classroom. Every line names the rule behind it, traceable to a CPCB health source, and
+the parent note is already written, English and Hindi. The principal gets all of this by email at 6 a.m., before
+anyone leaves home."
+<!-- MORE -->
 
-**Say:** "This is a school's live morning plan. AirDay takes the hourly pollution forecast for the school's
-locality and walks its real timetable — assembly, recess, PE — and tells the principal what to do with each. The
-chart is hourly PM2.5: real concentrations, which AirDay never calls 'AQI', because AQI is a daily average."
+### ⏱ 1:45–2:15 · Find a clear window
+**OPEN:** left nav → **Check an activity** → scroll to **Find a clear window**. Leave "Plan from" on **Today**.
+Pick **PE**, **2 hours**, click **Find windows**.
+**SAY:** "And the flip side — when is it safe? On Check an activity, I pick PE and two hours, and AirDay scans the
+next three days, within school hours, and shows exactly when the air is clear enough — with the band and the
+rule. Planning around the air, not just reacting to it."
 
-## 0:40 – 1:20 · Replay a Severe day (the core)
-
-**Show:** switch "Plan from" to **Replay: 2025-11-19**. Let the red plan load; scroll the activity rows, then the
-parent note.
-
-**Say:** "But the point of AirDay is the bad days — so let me replay a real one. The 19th of November: a Severe
-morning in Delhi, frozen with the actual forecast, a real station reading, and the official bulletin. Watch the
-plan. Assembly — hold indoors. Recess — keep the children in. PE and the Class 6B match — moved indoors, Severe.
-Every line carries the rule behind it, traceable to a CPCB health source. And the parent note is already written,
-English and Hindi, ready to send. The principal gets all of this by email at 6 a.m., before anyone leaves home."
-
-## 1:20 – 1:50 · Find a clear window
-
-**Show:** the **Check an activity** page, scroll to **Find a clear window**. Pick PE, 2 hours, click **Find
-windows**. (Live mode shows real clear windows; keep it on "Today" here, not replay.)
-
-**Say:** "The harder question is: when *can* we hold the sports day? AirDay answers that too. I pick PE and two
-hours, and it scans the next three days, within school hours, and shows exactly when the air is clear enough — with
-the band and the rule. That's planning around the air, not just reacting to it."
-
-## 1:50 – 2:15 · The assistant
-
-**Show:** open the chat, type: **"When can we hold sports day this week?"** Let the grounded answer appear.
-
-**Say:** "There's also an assistant. I'll ask it in plain English — when can we hold sports day this week? It calls
-the same rules engine and answers with the window — and it can only cite rules the engine actually returned, so it
-can't make up a number about the air."
-
-## 2:15 – 2:45 · AWS + proof + close
-
-**Show:** the architecture diagram in the repo README (or the CloudWatch dashboard), then back to the site.
-
-**Say:** "Behind this, it's all serverless on AWS. At 6 a.m. a scheduler fans out one job per school through SQS to
-Lambda workers — so a thousand schools cost one forecast fetch, not a thousand. Cognito keeps each principal to
-their own school, and everything's traced and alarmed in CloudWatch. And it's measured: against nine Delhi
+### ⏱ 2:15–2:45 · Built on AWS + proof + close
+**OPEN:** the architecture diagram in the repo README (or the CloudWatch dashboard), then back to the site.
+**SAY:** "Behind this, it's all serverless on AWS. At 6 a.m. a scheduler fans out one job per school through SQS
+to Lambda workers — so a thousand schools cost one forecast fetch, not a thousand. Cognito keeps each principal
+to their own school, and everything's traced and alarmed in CloudWatch. And it's measured: against nine Delhi
 stations, flooring the forecast with live readings catches ninety-three percent of the worst hours. AirDay — the
 air, turned into a plan a school can act on. Thanks for watching."
 
 ---
 
-## Notes
+## If something looks different on the day
 
-- **Don't sign in on camera.** The whole demo runs on the public demo school, no login. Live Cognito sign-up sends
-  an email confirmation code — a guaranteed on-camera stall. The closing line already credits Cognito multi-tenancy
-  ("each principal to their own school"); if you want to show it, flash the **/signin** page for ~2 seconds during
-  that line — don't actually log in. (The live sign-in works, verified; you just don't need it here.)
-- If live air is clean and the window finder shows mostly "Moderate" windows, that's fine — it proves the positive
-  case. The replay segment already carries the dramatic "all red" moment.
-- Keep the whole thing under 3:00; the Rules require ≤3 minutes. If you run long, trim the Today segment (0:15–0:40)
-  first — the replay and the window finder are the parts that win.
-- Record in one take per segment and stitch; or do a single take following the timings above.
-
+- **The live band isn't "moderate."** Just say what's on screen ("in the good range", "poor today") — the point is
+  that it's live, not the exact band.
+- **"Delhi AQI — unavailable"** on the live view is the government feed being down (handled, reference-only). Don't
+  mention it; the 19 Nov replay shows a real AQI (374) instead.
+- **The assistant is slow or busy** (free-tier model): wait a beat, or re-ask once. If it still stalls, cut that
+  segment — the window finder shows the same planning power visually, and you stay under 3:00.
+- **Keep it under 3:00** (hard rule). If you're long, trim the "It's live right now" segment first; the replay and
+  the window finder are what win.
+- Record per-segment and stitch, or one take top-to-bottom. Only one on-camera switch (Plan from → 19 Nov) and one
+  page change (→ Check an activity); everything else is scrolling.
